@@ -34,6 +34,7 @@ struct pid_namespace {
 	gid_t pid_gid;
 	int hide_pid;
 	int reboot;	
+	unsigned int proc_inum;
 };
 
 extern struct pid_namespace init_pid_ns;
