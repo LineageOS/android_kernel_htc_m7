@@ -43,6 +43,8 @@ struct net {
 	struct list_head	cleanup_list;	
 	struct list_head	exit_list;	
 
+	unsigned int		proc_inum;
+
 	struct proc_dir_entry 	*proc_net;
 	struct proc_dir_entry 	*proc_net_stat;
 
