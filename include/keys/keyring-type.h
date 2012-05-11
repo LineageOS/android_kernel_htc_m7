@@ -20,7 +20,7 @@ struct keyring_list {
 	unsigned short	maxkeys;	
 	unsigned short	nkeys;		
 	unsigned short	delkey;		
-	struct key	*keys[0];
+	struct key __rcu *keys[0];
 };
 
 
