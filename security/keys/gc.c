@@ -127,40 +127,48 @@ do_gc:
 	kleave(" [gc]");
 }
 
-static noinline void key_gc_unused_key(struct key *key)
+static noinline void key_gc_unused_keys(struct list_head *keys)
 {
-	key_check(key);
+	while (!list_empty(keys)) {
+		struct key *key =
+			list_entry(keys->next, struct key, graveyard_link);
+		list_del(&key->graveyard_link);
 
-	security_key_free(key);
+		kdebug("- %u", key->serial);
+		key_check(key);
 
-	
-	if (test_bit(KEY_FLAG_IN_QUOTA, &key->flags)) {
-		spin_lock(&key->user->lock);
-		key->user->qnkeys--;
-		key->user->qnbytes -= key->quotalen;
-		spin_unlock(&key->user->lock);
-	}
+		security_key_free(key);
 
-	atomic_dec(&key->user->nkeys);
-	if (test_bit(KEY_FLAG_INSTANTIATED, &key->flags))
-		atomic_dec(&key->user->nikeys);
+		
+		if (test_bit(KEY_FLAG_IN_QUOTA, &key->flags)) {
+			spin_lock(&key->user->lock);
+			key->user->qnkeys--;
+			key->user->qnbytes -= key->quotalen;
+			spin_unlock(&key->user->lock);
+		}
 
-	
-	if (key->type->destroy)
-		key->type->destroy(key);
+		atomic_dec(&key->user->nkeys);
+		if (test_bit(KEY_FLAG_INSTANTIATED, &key->flags))
+			atomic_dec(&key->user->nikeys);
 
-	key_user_put(key->user);
+		
+		if (key->type->destroy)
+			key->type->destroy(key);
 
-	kfree(key->description);
+		key_user_put(key->user);
+
+		kfree(key->description);
 
 #ifdef KEY_DEBUGGING
-	key->magic = KEY_DEBUG_MAGIC_X;
+		key->magic = KEY_DEBUG_MAGIC_X;
 #endif
-	kmem_cache_free(key_jar, key);
+		kmem_cache_free(key_jar, key);
+	}
 }
 
 static void key_garbage_collector(struct work_struct *work)
 {
+	static LIST_HEAD(graveyard);
 	static u8 gc_state;		
 #define KEY_GC_REAP_AGAIN	0x01	
 #define KEY_GC_REAPING_LINKS	0x02	
@@ -258,9 +266,14 @@ maybe_resched:
 		key_schedule_gc(new_timer);
 	}
 
-	if (unlikely(gc_state & KEY_GC_REAPING_DEAD_2)) {
-		kdebug("dead sync");
+	if (unlikely(gc_state & KEY_GC_REAPING_DEAD_2) ||
+	    !list_empty(&graveyard)) {
 		synchronize_rcu();
+	}
+
+	if (!list_empty(&graveyard)) {
+		kdebug("gc keys");
+		key_gc_unused_keys(&graveyard);
 	}
 
 	if (unlikely(gc_state & (KEY_GC_REAPING_DEAD_1 |
@@ -291,7 +304,7 @@ found_unreferenced_key:
 	rb_erase(&key->serial_node, &key_serial_tree);
 	spin_unlock(&key_serial_lock);
 
-	key_gc_unused_key(key);
+	list_add_tail(&key->graveyard_link, &graveyard);
 	gc_state |= KEY_GC_REAP_AGAIN;
 	goto maybe_resched;
 
