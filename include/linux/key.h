@@ -100,7 +100,10 @@ static inline unsigned long is_key_possessed(const key_ref_t key_ref)
 struct key {
 	atomic_t		usage;		
 	key_serial_t		serial;		
-	struct rb_node		serial_node;
+	union {
+		struct list_head graveyard_link;
+		struct rb_node		serial_node;
+	};
 	struct key_type		*type;		
 	struct rw_semaphore	sem;		
 	struct key_user		*user;		
