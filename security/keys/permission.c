@@ -67,13 +67,18 @@ EXPORT_SYMBOL(key_task_permission);
 int key_validate(struct key *key)
 {
 	struct timespec now;
+	unsigned long flags = key->flags;
 	int ret = 0;
 
 	if (key) {
+		ret = -ENOKEY;
+		if (flags & (1 << KEY_FLAG_INVALIDATED))
+			goto error;
+
 		
 		ret = -EKEYREVOKED;
-		if (test_bit(KEY_FLAG_REVOKED, &key->flags) ||
-		    test_bit(KEY_FLAG_DEAD, &key->flags))
+		if (flags & ((1 << KEY_FLAG_REVOKED) |
+			     (1 << KEY_FLAG_DEAD)))
 			goto error;
 
 		
