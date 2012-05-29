@@ -158,11 +158,12 @@ struct lruvec {
 #define LRU_ALL_EVICTABLE (LRU_ALL_FILE | LRU_ALL_ANON)
 #define LRU_ALL	     ((1 << NR_LRU_LISTS) - 1)
 
-#define ISOLATE_INACTIVE	((__force isolate_mode_t)0x1)
-#define ISOLATE_ACTIVE		((__force isolate_mode_t)0x2)
-#define ISOLATE_CLEAN		((__force isolate_mode_t)0x4)
-#define ISOLATE_UNMAPPED	((__force isolate_mode_t)0x8)
-#define ISOLATE_ASYNC_MIGRATE	((__force isolate_mode_t)0x10)
+/* Isolate clean file */
+#define ISOLATE_CLEAN		((__force isolate_mode_t)0x1)
+/* Isolate unmapped file */
+#define ISOLATE_UNMAPPED	((__force isolate_mode_t)0x2)
+/* Isolate for asynchronous migration */
+#define ISOLATE_ASYNC_MIGRATE	((__force isolate_mode_t)0x4)
 
 typedef unsigned __bitwise__ isolate_mode_t;
 
