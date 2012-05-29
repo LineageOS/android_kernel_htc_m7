@@ -251,12 +251,7 @@ struct mm_struct {
 	
 	mm_context_t context;
 
-	
-	unsigned int faultstamp;
-	unsigned int token_priority;
-	unsigned int last_interval;
-
-	unsigned long flags; 
+	unsigned long flags; /* Must use atomic bitops to access the bits */
 
 	struct core_state *core_state; 
 #ifdef CONFIG_AIO
