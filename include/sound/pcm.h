@@ -77,6 +77,7 @@ struct snd_pcm_ops {
 			     unsigned long offset);
 	int (*mmap)(struct snd_pcm_substream *substream, struct vm_area_struct *vma);
 	int (*ack)(struct snd_pcm_substream *substream);
+	int (*restart)(struct snd_pcm_substream *substream);
 };
 
 
@@ -105,22 +106,28 @@ struct snd_pcm_ops {
 
 #define SNDRV_PCM_POS_XRUN		((snd_pcm_uframes_t)-1)
 
-#define SNDRV_PCM_RATE_5512		(1<<0)		
-#define SNDRV_PCM_RATE_8000		(1<<1)		
-#define SNDRV_PCM_RATE_11025		(1<<2)		
-#define SNDRV_PCM_RATE_16000		(1<<3)		
-#define SNDRV_PCM_RATE_22050		(1<<4)		
-#define SNDRV_PCM_RATE_32000		(1<<5)		
-#define SNDRV_PCM_RATE_44100		(1<<6)		
-#define SNDRV_PCM_RATE_48000		(1<<7)		
-#define SNDRV_PCM_RATE_64000		(1<<8)		
-#define SNDRV_PCM_RATE_88200		(1<<9)		
-#define SNDRV_PCM_RATE_96000		(1<<10)		
-#define SNDRV_PCM_RATE_176400		(1<<11)		
-#define SNDRV_PCM_RATE_192000		(1<<12)		
+#define SNDRV_DMA_MODE          (0)
+#define SNDRV_NON_DMA_MODE      (1 << 0)
+#define SNDRV_RENDER_STOPPED    (1 << 1)
+#define SNDRV_RENDER_RUNNING    (1 << 2)
 
-#define SNDRV_PCM_RATE_CONTINUOUS	(1<<30)		
-#define SNDRV_PCM_RATE_KNOT		(1<<31)		
+/* If you change this don't forget to change rates[] table in pcm_native.c */
+#define SNDRV_PCM_RATE_5512		(1<<0)		/* 5512Hz */
+#define SNDRV_PCM_RATE_8000		(1<<1)		/* 8000Hz */
+#define SNDRV_PCM_RATE_11025		(1<<2)		/* 11025Hz */
+#define SNDRV_PCM_RATE_16000		(1<<3)		/* 16000Hz */
+#define SNDRV_PCM_RATE_22050		(1<<4)		/* 22050Hz */
+#define SNDRV_PCM_RATE_32000		(1<<5)		/* 32000Hz */
+#define SNDRV_PCM_RATE_44100		(1<<6)		/* 44100Hz */
+#define SNDRV_PCM_RATE_48000		(1<<7)		/* 48000Hz */
+#define SNDRV_PCM_RATE_64000		(1<<8)		/* 64000Hz */
+#define SNDRV_PCM_RATE_88200		(1<<9)		/* 88200Hz */
+#define SNDRV_PCM_RATE_96000		(1<<10)		/* 96000Hz */
+#define SNDRV_PCM_RATE_176400		(1<<11)		/* 176400Hz */
+#define SNDRV_PCM_RATE_192000		(1<<12)		/* 192000Hz */
+
+#define SNDRV_PCM_RATE_CONTINUOUS	(1<<30)		/* continuous range */
+#define SNDRV_PCM_RATE_KNOT		(1<<31)		/* supports more non-continuos rates */
 
 #define SNDRV_PCM_RATE_8000_44100	(SNDRV_PCM_RATE_8000|SNDRV_PCM_RATE_11025|\
 					 SNDRV_PCM_RATE_16000|SNDRV_PCM_RATE_22050|\
@@ -293,6 +300,7 @@ struct snd_pcm_runtime {
 	unsigned int rate_num;
 	unsigned int rate_den;
 	unsigned int no_period_wakeup: 1;
+	unsigned int render_flag;
 
 	
 	int tstamp_mode;		

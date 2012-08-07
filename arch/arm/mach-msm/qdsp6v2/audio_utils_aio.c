@@ -1159,7 +1159,6 @@ long audio_aio_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		
 		stats.byte_count = atomic_read(&audio->in_bytes);
 		stats.sample_count = atomic_read(&audio->in_samples);
-		timestamp = q6asm_get_session_time(audio->ac);
 		memcpy(&stats.unused[0], &timestamp, sizeof(timestamp));
 		if (copy_to_user((void *)arg, &stats, sizeof(stats)))
 			rc = -EFAULT;
