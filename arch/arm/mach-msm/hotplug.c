@@ -41,22 +41,28 @@ static inline void cpu_leave_lowpower(void)
 {
 }
 
-static inline void platform_do_lowpower(unsigned int cpu)
+static inline void platform_do_lowpower(unsigned int cpu, int *spurious)
 {
 	
 	for (;;) {
 
 		msm_pm_cpu_enter_lowpower(cpu);
 		if (pen_release == cpu_logical_map(cpu)) {
-			pen_release = -1;
-			dmac_flush_range((void *)&pen_release,
-				(void *)(&pen_release + sizeof(pen_release)));
+			/*
+			 * OK, proper wakeup, we're done
+			 */
 			break;
 		}
 
-		dmac_inv_range((void *)&pen_release,
-			       (void *)(&pen_release + sizeof(pen_release)));
-		pr_debug("CPU%u: spurious wakeup call\n", cpu);
+		/*
+		 * getting here, means that we have come out of WFI without
+		 * having been woken up - this shouldn't happen
+		 *
+		 * The trouble is, letting people know about this is not really
+		 * possible, since we are currently running incoherently, and
+		 * therefore cannot safely call printk() or anything else
+		 */
+		(*spurious)++;
 	}
 }
 
@@ -73,6 +79,8 @@ int platform_cpu_kill(unsigned int cpu)
 
 void platform_cpu_die(unsigned int cpu)
 {
+	int spurious = 0;
+
 	if (unlikely(cpu != smp_processor_id())) {
 		pr_crit("%s: running on %u, should be %u\n",
 			__func__, smp_processor_id(), cpu);
@@ -80,10 +88,13 @@ void platform_cpu_die(unsigned int cpu)
 	}
 	complete(&__get_cpu_var(msm_hotplug_devices).cpu_killed);
 	cpu_enter_lowpower();
-	platform_do_lowpower(cpu);
+	platform_do_lowpower(cpu, &spurious);
 
 	pr_debug("CPU%u: %s: normal wakeup\n", cpu, __func__);
 	cpu_leave_lowpower();
+
+	if (spurious)
+		pr_warn("CPU%u: %u spurious wakeup calls\n", cpu, spurious);
 }
 
 int platform_cpu_disable(unsigned int cpu)
