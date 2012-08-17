@@ -98,6 +98,7 @@
 	printk(KERN_DEBUG "[PM] " pr_fmt(fmt), ## args)
 #endif
 #include <linux/cpu_pm.h>
+#include <mach/event_timer.h>
 
 
 enum {
@@ -210,6 +211,7 @@ static char *msm_pm_sleep_mode_labels[MSM_PM_SLEEP_MODE_NR] = {
 		"standalone_power_collapse",
 };
 
+static struct hrtimer pm_hrtimer;
 static struct msm_pm_sleep_ops pm_sleep_ops;
 static ssize_t msm_pm_mode_attr_show(
 	struct kobject *kobj, struct kobj_attribute *attr, char *buf)
@@ -819,6 +821,31 @@ static int64_t msm_pm_timer_exit_suspend(int64_t time, int64_t period)
 	return time;
 }
 
+/**
+ * pm_hrtimer_cb() : Callback function for hrtimer created if the
+ *                   core needs to be awake to handle an event.
+ * @hrtimer : Pointer to hrtimer
+ */
+static enum hrtimer_restart pm_hrtimer_cb(struct hrtimer *hrtimer)
+{
+	return HRTIMER_NORESTART;
+}
+
+/**
+ * msm_pm_set_timer() : Set an hrtimer to wakeup the core in time
+ *                      to handle an event.
+ */
+static void msm_pm_set_timer(uint32_t modified_time_us)
+{
+	u64 modified_time_ns = modified_time_us * NSEC_PER_USEC;
+	ktime_t modified_ktime = ns_to_ktime(modified_time_ns);
+	pm_hrtimer.function = pm_hrtimer_cb;
+	hrtimer_start(&pm_hrtimer, modified_ktime, HRTIMER_MODE_ABS);
+}
+
+/******************************************************************************
+ * External Idle/Suspend Functions
+ *****************************************************************************/
 
 void arch_idle(void)
 {
@@ -828,15 +855,26 @@ void arch_idle(void)
 int msm_pm_idle_prepare(struct cpuidle_device *dev,
 		struct cpuidle_driver *drv, int index)
 {
-	uint32_t latency_us;
-	uint32_t sleep_us;
 	int i;
 	unsigned int power_usage = -1;
 	int ret = MSM_PM_SLEEP_MODE_NOT_SELECTED;
 
-	latency_us = (uint32_t) pm_qos_request(PM_QOS_CPU_DMA_LATENCY);
-	sleep_us = (uint32_t) ktime_to_ns(tick_nohz_get_sleep_length());
-	sleep_us = DIV_ROUND_UP(sleep_us, 1000);
+	uint32_t modified_time_us = 0;
+	struct msm_pm_time_params time_param;
+
+	time_param.latency_us =
+		(uint32_t) pm_qos_request(PM_QOS_CPU_DMA_LATENCY);
+	time_param.sleep_us =
+		(uint32_t) (ktime_to_us(tick_nohz_get_sleep_length())
+								& UINT_MAX);
+	time_param.modified_time_us = 0;
+
+	if (!dev->cpu)
+		time_param.next_event_us =
+			(uint32_t) (ktime_to_us(get_next_event_time())
+								& UINT_MAX);
+	else
+		time_param.next_event_us = 0;
 
 	for (i = 0; i < dev->state_count; i++) {
 		struct cpuidle_state *state = &drv->states[i];
@@ -879,17 +917,18 @@ int msm_pm_idle_prepare(struct cpuidle_device *dev,
 		case MSM_PM_SLEEP_MODE_WAIT_FOR_INTERRUPT:
 			if (!allow)
 				break;
+			/* fall through */
 
 			if (pm_sleep_ops.lowest_limits)
 				rs_limits = pm_sleep_ops.lowest_limits(true,
-						mode, latency_us, sleep_us,
-						&power);
+						mode, &time_param, &power);
 
 			if (MSM_PM_DEBUG_IDLE & msm_pm_debug_mask)
 				pr_info("CPU%u: %s: %s, latency %uus, "
 					"sleep %uus, limit %p\n",
 					dev->cpu, __func__, state->desc,
-					latency_us, sleep_us, rs_limits);
+					time_param.latency_us,
+					time_param.sleep_us, rs_limits);
 
 			if ((MSM_PM_DEBUG_IDLE_LIMITS & msm_pm_debug_mask) &&
 					rs_limits)
@@ -918,6 +957,7 @@ int msm_pm_idle_prepare(struct cpuidle_device *dev,
 		if (allow) {
 			if (power < power_usage) {
 				power_usage = power;
+				modified_time_us = time_param.modified_time_us;
 				ret = mode;
 			}
 
@@ -926,6 +966,8 @@ int msm_pm_idle_prepare(struct cpuidle_device *dev,
 		}
 	}
 
+	if (modified_time_us && !dev->cpu)
+		msm_pm_set_timer(modified_time_us);
 	return ret;
 }
 
@@ -1189,6 +1231,11 @@ static int msm_pm_enter(suspend_state_t state)
 	int curr_len = 0;
 	uint64_t xo_shutdown_time, vdd_min_time;
 	int collapsed;
+	struct msm_pm_time_params time_param;
+
+	time_param.latency_us = -1;
+	time_param.sleep_us = -1;
+	time_param.next_event_us = 0;
 
 #if defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY)
 	dlp_ext_buck_en(0);
@@ -1288,8 +1335,7 @@ static int msm_pm_enter(suspend_state_t state)
 #endif 
 		if (pm_sleep_ops.lowest_limits)
 			rs_limits = pm_sleep_ops.lowest_limits(false,
-					MSM_PM_SLEEP_MODE_POWER_COLLAPSE, -1,
-					-1, &power);
+			MSM_PM_SLEEP_MODE_POWER_COLLAPSE, &time_param, &power);
 
 		if ((MSM_PM_DEBUG_SUSPEND_LIMITS & msm_pm_debug_mask) &&
 				rs_limits)
@@ -1483,6 +1529,7 @@ static int __init msm_pm_init(void)
 	suspend_set_ops(&msm_pm_ops);
 	boot_lock_nohalt();
 	msm_pm_qtimer_available();
+	hrtimer_init(&pm_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_ABS);
 	msm_cpuidle_init();
 	if (get_kernel_flag() & KERNEL_FLAG_GPIO_DUMP) {
 		suspend_console_deferred = 1;
