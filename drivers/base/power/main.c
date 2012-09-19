@@ -468,7 +468,6 @@ static int device_resume(struct device *dev, pm_message_t state, bool async)
 	pm_callback_t callback = NULL;
 	char *info = NULL;
 	int error = 0;
-	bool put = false;
 
 	TRACE_DEVICE(dev);
 	TRACE_RESUME(0);
@@ -482,7 +481,6 @@ static int device_resume(struct device *dev, pm_message_t state, bool async)
 		goto Unlock;
 
 	pm_runtime_enable(dev);
-	put = true;
 
 	if (dev->pm_domain) {
 		info = "power domain ";
@@ -534,9 +532,6 @@ static int device_resume(struct device *dev, pm_message_t state, bool async)
 	complete_all(&dev->power.completion);
 
 	TRACE_RESUME(error);
-
-	if (put)
-		pm_runtime_put_sync(dev);
 
 	return error;
 }
@@ -651,6 +646,8 @@ static void device_complete(struct device *dev, pm_message_t state)
 	}
 
 	device_unlock(dev);
+
+	pm_runtime_put_sync(dev);
 }
 
 void dpm_complete(pm_message_t state)
@@ -872,12 +869,16 @@ static int __device_suspend(struct device *dev, pm_message_t state, bool async)
 	if (async_error)
 		goto Complete;
 
-	pm_runtime_get_noresume(dev);
+	/*
+	 * If a device configured to wake up the system from sleep states
+	 * has been suspended at run time and there's a resume request pending
+	 * for it, this is equivalent to the device signaling wakeup, so the
+	 * system suspend operation should be aborted.
+	 */
 	if (pm_runtime_barrier(dev) && device_may_wakeup(dev))
 		pm_wakeup_event(dev, 0);
 
 	if (pm_wakeup_pending()) {
-		pm_runtime_put_sync(dev);
 		async_error = -EBUSY;
 		goto Complete;
 	}
@@ -951,12 +952,10 @@ static int __device_suspend(struct device *dev, pm_message_t state, bool async)
 Complete:
 	complete_all(&dev->power.completion);
 
-	if (error) {
-		pm_runtime_put_sync(dev);
+	if (error)
 		async_error = error;
-	} else if (dev->power.is_suspended) {
+	else if (dev->power.is_suspended)
 		__pm_runtime_disable(dev, false);
-	}
 
 	return error;
 }
@@ -1036,6 +1035,14 @@ static int device_prepare(struct device *dev, pm_message_t state)
 	int (*callback)(struct device *) = NULL;
 	char *info = NULL;
 	int error = 0;
+
+	/*
+	 * If a device's parent goes into runtime suspend at the wrong time,
+	 * it won't be possible to resume the device.  To prevent this we
+	 * block runtime suspend here, during the prepare phase, and allow
+	 * it again during the complete phase.
+	 */
+	pm_runtime_get_noresume(dev);
 
 	device_lock(dev);
 
