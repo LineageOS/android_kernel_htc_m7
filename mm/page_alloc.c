@@ -4437,7 +4437,9 @@ __alloc_contig_migrate_alloc(struct page *page, unsigned long private,
 	return alloc_page(GFP_HIGHUSER_MOVABLE);
 }
 
-static int __alloc_contig_migrate_range(unsigned long start, unsigned long end)
+/* [start, end) must belong to a single zone. */
+static int __alloc_contig_migrate_range(struct compact_control *cc,
+					unsigned long start, unsigned long end)
 {
 	/* This function is based on compact_zone() from compaction.c. */
 	unsigned long nr_reclaimed;
@@ -4455,15 +4457,15 @@ static int __alloc_contig_migrate_range(unsigned long start, unsigned long end)
 
 	migrate_prep_local();
 
-	while (pfn < end || !list_empty(&cc.migratepages)) {
+	while (pfn < end || !list_empty(&cc->migratepages)) {
 		if (fatal_signal_pending(current)) {
 			ret = -EINTR;
 			break;
 		}
 
-		if (list_empty(&cc.migratepages)) {
-			cc.nr_migratepages = 0;
-			pfn = isolate_migratepages_range(cc.zone, &cc,
+		if (list_empty(&cc->migratepages)) {
+			cc->nr_migratepages = 0;
+			pfn = isolate_migratepages_range(cc->zone, cc,
 							 pfn, end);
 			if (!pfn) {
 				ret = -EINTR;
@@ -4475,16 +4477,16 @@ static int __alloc_contig_migrate_range(unsigned long start, unsigned long end)
 			break;
 		}
 
-		nr_reclaimed = reclaim_clean_pages_from_list(cc.zone,
-							&cc.migratepages);
-		cc.nr_migratepages -= nr_reclaimed;
+		nr_reclaimed = reclaim_clean_pages_from_list(cc->zone, &cc->migratepages);
 
-		ret = migrate_pages(&cc.migratepages,
+		cc->nr_migratepages -= nr_reclaimed;
+
+		ret = migrate_pages(&cc->migratepages,
 				    __alloc_contig_migrate_alloc,
 				    0, false, true);
 	}
 
-	putback_lru_pages(&cc.migratepages);
+	putback_lru_pages(&cc->migratepages);
 	return ret > 0 ? 0 : ret;
 }
 
@@ -4531,6 +4533,38 @@ int alloc_contig_range(unsigned long start, unsigned long end,
 	unsigned long outer_start, outer_end;
 	int ret = 0, order;
 
+	struct compact_control cc = {
+		.nr_migratepages = 0,
+		.order = -1,
+		.zone = page_zone(pfn_to_page(start)),
+		.sync = true,
+		.ignore_skip_hint = true,
+	};
+	INIT_LIST_HEAD(&cc.migratepages);
+
+	/*
+	 * What we do here is we mark all pageblocks in range as
+	 * MIGRATE_ISOLATE.  Because pageblock and max order pages may
+	 * have different sizes, and due to the way page allocator
+	 * work, we align the range to biggest of the two pages so
+	 * that page allocator won't try to merge buddies from
+	 * different pageblocks and change MIGRATE_ISOLATE to some
+	 * other migration type.
+	 *
+	 * Once the pageblocks are marked as MIGRATE_ISOLATE, we
+	 * migrate the pages from an unaligned range (ie. pages that
+	 * we are interested in).  This will put all the pages in
+	 * range back to page allocator as MIGRATE_ISOLATE.
+	 *
+	 * When this is done, we take the pages in range from page
+	 * allocator removing them from the buddy system.  This way
+	 * page allocator will never consider using them.
+	 *
+	 * This lets us mark the pageblocks back as
+	 * MIGRATE_CMA/MIGRATE_MOVABLE so that free pages in the
+	 * aligned range but not in the unaligned, original range are
+	 * put back to page allocator so that buddy can use them.
+	 */
 
 	ret = start_isolate_page_range(pfn_max_align_down(start),
 				       pfn_max_align_up(end), migratetype);
@@ -4539,7 +4573,7 @@ int alloc_contig_range(unsigned long start, unsigned long end,
 
 	zone->cma_alloc = 1;
 
-	ret = __alloc_contig_migrate_range(start, end);
+	ret = __alloc_contig_migrate_range(&cc, start, end);
 	if (ret)
 		goto done;
 
@@ -4567,8 +4601,8 @@ int alloc_contig_range(unsigned long start, unsigned long end,
 
 	__reclaim_pages(zone, GFP_HIGHUSER_MOVABLE, end-start);
 
-	
-	outer_end = isolate_freepages_range(outer_start, end);
+	/* Grab isolated pages from freelists. */
+	outer_end = isolate_freepages_range(&cc, outer_start, end);
 	if (!outer_end) {
 		ret = -EBUSY;
 		goto done;

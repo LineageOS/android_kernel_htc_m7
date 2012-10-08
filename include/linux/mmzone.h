@@ -252,7 +252,10 @@ struct zone {
 #endif
 	struct per_cpu_pageset __percpu *pageset;
 	spinlock_t		lock;
-	int                     all_unreclaimable; 
+	int                     all_unreclaimable; /* All pages pinned */
+#if defined CONFIG_COMPACTION || defined CONFIG_CMA
+	unsigned long		compact_blockskip_expire;
+#endif
 #ifdef CONFIG_MEMORY_HOTPLUG
 	
 	seqlock_t		span_seqlock;
