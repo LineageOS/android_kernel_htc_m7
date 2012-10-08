@@ -329,6 +329,7 @@ void put_pages_list(struct list_head *pages);
 
 void split_page(struct page *page, unsigned int order);
 int split_free_page(struct page *page);
+int capture_free_page(struct page *page, int alloc_order, int migratetype);
 
 typedef void compound_page_dtor(struct page *);
 
