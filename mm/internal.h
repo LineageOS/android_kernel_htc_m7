@@ -79,7 +79,7 @@ struct compact_control {
 	int order;			
 	int migratetype;		
 	struct zone *zone;
-	bool *contended;		/* True if a lock was contended */
+	bool contended;			/* True if a lock was contended */
 	struct page **page;		/* Page captured of requested size */
 };
 
