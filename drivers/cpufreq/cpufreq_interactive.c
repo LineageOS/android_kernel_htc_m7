@@ -58,6 +58,7 @@ struct cpufreq_interactive_cpuinfo {
 	u64 max_freq_idle_start_time;
 	struct rw_semaphore enable_sem;
 	int governor_enabled;
+	int cpu_load;
 };
 
 static DEFINE_PER_CPU(struct cpufreq_interactive_cpuinfo, cpuinfo);
@@ -399,6 +400,8 @@ static void cpufreq_interactive_timer(unsigned long data)
 	boosted = boost_val || now < boostpulse_endtime;
 	this_hispeed_freq = max(hispeed_freq, pcpu->policy->min);
 
+	pcpu->cpu_load = cpu_load;
+
 	if (cpu_load >= go_hispeed_load || boosted) {
 		if (pcpu->policy->cur < this_hispeed_freq) {
 			new_freq = this_hispeed_freq;
@@ -632,7 +635,7 @@ static int cpufreq_interactive_speedchange_task(void *data)
 					hvt = min(hvt, pjcpu->local_hvtime);
 				}
 
-				cpufreq_notify_utilization(pcpu->policy, (pcpu->prev_load * pcpu->policy->cur) / pcpu->policy->cpuinfo.max_freq);
+				cpufreq_notify_utilization(pcpu->policy, (pcpu->cpu_load * pcpu->policy->cur) / pcpu->policy->cpuinfo.max_freq);
 			}
 
 			if (max_freq != pcpu->policy->cur) {
