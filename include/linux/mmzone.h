@@ -115,6 +115,7 @@ enum zone_stat_item {
 	NUMA_OTHER,		
 #endif
 	NR_ANON_TRANSPARENT_HUGEPAGES,
+	NR_FREE_CMA_PAGES,
 	NR_VM_ZONE_STAT_ITEMS };
 
 #define LRU_BASE 0
