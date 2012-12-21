@@ -12,6 +12,33 @@
  *      2 of the License, or (at your option) any later version.
  */
 
+/*
+ *	Changes:
+ *
+ *	Janos Farkas			:	delete timer on ifdown
+ *	<chexum@bankinf.banki.hu>
+ *	Andi Kleen			:	kill double kfree on module
+ *						unload.
+ *	Maciej W. Rozycki		:	FDDI support
+ *	sekiya@USAGI			:	Don't send too many RS
+ *						packets.
+ *	yoshfuji@USAGI			:       Fixed interval between DAD
+ *						packets.
+ *	YOSHIFUJI Hideaki @USAGI	:	improved accuracy of
+ *						address validation timer.
+ *	YOSHIFUJI Hideaki @USAGI	:	Privacy Extensions (RFC3041)
+ *						support.
+ *	Yuji SEKIYA @USAGI		:	Don't assign a same IPv6
+ *						address on a same interface.
+ *	YOSHIFUJI Hideaki @USAGI	:	ARCnet support
+ *	YOSHIFUJI Hideaki @USAGI	:	convert /proc/net/if_inet6 to
+ *						seq_file.
+ *	YOSHIFUJI Hideaki @USAGI	:	improved source address
+ *						selection; consider scope,
+ *						status etc.
+ *	Harout S. Hedeshian		:	procfs flag to toggle automatic
+ *						addition of prefix route
+ */
 
 #include <linux/errno.h>
 #include <linux/types.h>
@@ -168,6 +195,7 @@ static struct ipv6_devconf ipv6_devconf __read_mostly = {
 	.accept_source_route	= 0,	
 	.disable_ipv6		= 0,
 	.accept_dad		= 1,
+	.accept_ra_prefix_route = 1,
 };
 
 static struct ipv6_devconf ipv6_devconf_dflt __read_mostly = {
@@ -202,6 +230,7 @@ static struct ipv6_devconf ipv6_devconf_dflt __read_mostly = {
 	.accept_source_route	= 0,	
 	.disable_ipv6		= 0,
 	.accept_dad		= 1,
+	.accept_ra_prefix_route = 1,
 };
 
 const struct in6_addr in6addr_any = IN6ADDR_ANY_INIT;
@@ -1728,8 +1757,10 @@ void addrconf_prefix_rcv(struct net_device *dev, u8 *opt, int len, bool sllao)
 				flags |= RTF_EXPIRES;
 				expires = jiffies_to_clock_t(rt_expires);
 			}
-			addrconf_prefix_route(&pinfo->prefix, pinfo->prefix_len,
-					      dev, expires, flags);
+			if (dev->ip6_ptr->cnf.accept_ra_prefix_route) {
+				addrconf_prefix_route(&pinfo->prefix,
+					pinfo->prefix_len, dev, expires, flags);
+			}
 		}
 		if (rt)
 			dst_release(&rt->dst);
@@ -4273,7 +4304,14 @@ static struct addrconf_sysctl_table
 			.proc_handler   = proc_dointvec
 		},
 		{
-			
+			.procname	= "accept_ra_prefix_route",
+			.data		= &ipv6_devconf.accept_ra_prefix_route,
+			.maxlen		= sizeof(int),
+			.mode		= 0644,
+			.proc_handler	= proc_dointvec,
+		},
+		{
+			/* sentinel */
 		}
 	},
 };
