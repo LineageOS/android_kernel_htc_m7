@@ -259,6 +259,7 @@ struct zone {
 #endif
 #ifdef CONFIG_CMA
 	unsigned long		min_cma_pages;
+	bool			cma_alloc;
 #endif
 	struct free_area	free_area[MAX_ORDER];
 
