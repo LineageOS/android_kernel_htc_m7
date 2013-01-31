@@ -30,12 +30,12 @@ struct cpu_stop_done {
 
 struct cpu_stopper {
 	spinlock_t		lock;
-	bool			enabled;	
-	struct list_head	works;		
-	struct task_struct	*thread;	
+	bool			enabled;	/* is this stopper enabled? */
+	struct list_head	works;		/* list of pending works */
 };
 
 static DEFINE_PER_CPU(struct cpu_stopper, cpu_stopper);
+static DEFINE_PER_CPU(struct task_struct *, cpu_stopper_task);
 static bool stop_machine_initialized = false;
 
 static void cpu_stop_init_done(struct cpu_stop_done *done, unsigned int nr_todo)
@@ -55,16 +55,19 @@ static void cpu_stop_signal_done(struct cpu_stop_done *done, bool executed)
 	}
 }
 
-static void cpu_stop_queue_work(struct cpu_stopper *stopper,
-				struct cpu_stop_work *work)
+/* queue @work to @stopper.  if offline, @work is completed immediately */
+static void cpu_stop_queue_work(unsigned int cpu, struct cpu_stop_work *work)
 {
+	struct cpu_stopper *stopper = &per_cpu(cpu_stopper, cpu);
+	struct task_struct *p = per_cpu(cpu_stopper_task, cpu);
+
 	unsigned long flags;
 
 	spin_lock_irqsave(&stopper->lock, flags);
 
 	if (stopper->enabled) {
 		list_add_tail(&work->list, &stopper->works);
-		wake_up_process(stopper->thread);
+		wake_up_process(p);
 	} else
 		cpu_stop_signal_done(work->done, false);
 
@@ -77,7 +80,7 @@ int stop_one_cpu(unsigned int cpu, cpu_stop_fn_t fn, void *arg)
 	struct cpu_stop_work work = { .fn = fn, .arg = arg, .done = &done };
 
 	cpu_stop_init_done(&done, 1);
-	cpu_stop_queue_work(&per_cpu(cpu_stopper, cpu), &work);
+	cpu_stop_queue_work(cpu, &work);
 	wait_for_completion(&done.completion);
 	return done.executed ? done.ret : -ENOENT;
 }
@@ -86,7 +89,7 @@ void stop_one_cpu_nowait(unsigned int cpu, cpu_stop_fn_t fn, void *arg,
 			struct cpu_stop_work *work_buf)
 {
 	*work_buf = (struct cpu_stop_work){ .fn = fn, .arg = arg, };
-	cpu_stop_queue_work(&per_cpu(cpu_stopper, cpu), work_buf);
+	cpu_stop_queue_work(cpu, work_buf);
 }
 
 DEFINE_MUTEX(stop_cpus_mutex);
@@ -109,8 +112,7 @@ static void queue_stop_cpus_work(const struct cpumask *cpumask,
 
 	preempt_disable();
 	for_each_cpu(cpu, cpumask)
-		cpu_stop_queue_work(&per_cpu(cpu_stopper, cpu),
-				    &per_cpu(stop_cpus_work, cpu));
+		cpu_stop_queue_work(cpu, &per_cpu(stop_cpus_work, cpu));
 	preempt_enable();
 }
 
@@ -207,12 +209,11 @@ static int __cpuinit cpu_stop_cpu_callback(struct notifier_block *nfb,
 {
 	unsigned int cpu = (unsigned long)hcpu;
 	struct cpu_stopper *stopper = &per_cpu(cpu_stopper, cpu);
-	struct task_struct *p;
+	struct task_struct *p = per_cpu(cpu_stopper_task, cpu);
 
 	switch (action & ~CPU_TASKS_FROZEN) {
 	case CPU_UP_PREPARE:
-		BUG_ON(stopper->thread || stopper->enabled ||
-		       !list_empty(&stopper->works));
+		BUG_ON(p || stopper->enabled || !list_empty(&stopper->works));
 		p = kthread_create_on_node(cpu_stopper_thread,
 					   stopper,
 					   cpu_to_node(cpu),
@@ -222,13 +223,13 @@ static int __cpuinit cpu_stop_cpu_callback(struct notifier_block *nfb,
 		get_task_struct(p);
 		kthread_bind(p, cpu);
 		sched_set_stop_task(cpu, p);
-		stopper->thread = p;
+		per_cpu(cpu_stopper_task, cpu) = p;
 		break;
 
 	case CPU_ONLINE:
-		
-		wake_up_process(stopper->thread);
-		
+		/* strictly unnecessary, as first user will wake it */
+		wake_up_process(p);
+		/* mark enabled */
 		spin_lock_irq(&stopper->lock);
 		stopper->enabled = true;
 		spin_unlock_irq(&stopper->lock);
@@ -241,17 +242,17 @@ static int __cpuinit cpu_stop_cpu_callback(struct notifier_block *nfb,
 		struct cpu_stop_work *work;
 
 		sched_set_stop_task(cpu, NULL);
-		
-		kthread_stop(stopper->thread);
-		
+		/* kill the stopper */
+		kthread_stop(p);
+		/* drain remaining works */
 		spin_lock_irq(&stopper->lock);
 		list_for_each_entry(work, &stopper->works, list)
 			cpu_stop_signal_done(work->done, false);
 		stopper->enabled = false;
 		spin_unlock_irq(&stopper->lock);
-		
-		put_task_struct(stopper->thread);
-		stopper->thread = NULL;
+		/* release the stopper */
+		put_task_struct(p);
+		per_cpu(cpu_stopper_task, cpu) = NULL;
 		break;
 	}
 #endif
