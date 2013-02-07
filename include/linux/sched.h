@@ -1875,7 +1875,7 @@ static inline void mmdrop(struct mm_struct * mm)
 		__mmdrop(mm);
 }
 
-extern void mmput(struct mm_struct *);
+extern int mmput(struct mm_struct *);
 extern struct mm_struct *get_task_mm(struct task_struct *task);
 extern struct mm_struct *mm_access(struct task_struct *task, unsigned int mode);
 extern void mm_release(struct task_struct *, struct mm_struct *);
