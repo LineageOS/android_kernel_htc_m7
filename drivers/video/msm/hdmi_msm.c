@@ -596,21 +596,18 @@ EXPORT_SYMBOL(hdmi_msm_get_io_base);
 
 static void hdmi_msm_setup_video_mode_lut(void)
 {
-	HDMI_SETUP_LUT(640x480p60_4_3);
-	HDMI_SETUP_LUT(720x480p60_4_3);
-	HDMI_SETUP_LUT(720x480p60_16_9);
-	HDMI_SETUP_LUT(1280x720p60_16_9);
-	
-	HDMI_SETUP_LUT(1440x480i60_4_3);
-	HDMI_SETUP_LUT(1440x480i60_16_9);
-	
-	HDMI_SETUP_LUT(720x576p50_4_3);
-	HDMI_SETUP_LUT(720x576p50_16_9);
-	HDMI_SETUP_LUT(1280x720p50_16_9);
-	HDMI_SETUP_LUT(1440x576i50_4_3);
-	HDMI_SETUP_LUT(1440x576i50_16_9);
-	
-	HDMI_SETUP_LUT(1920x1080p24_16_9);
+	MSM_HDMI_MODES_SET_TIMING(hdmi_common_supported_video_mode_lut, HDMI_VFRMT_640x480p60_4_3);
+	MSM_HDMI_MODES_SET_TIMING(hdmi_common_supported_video_mode_lut, HDMI_VFRMT_720x480p60_4_3);
+	MSM_HDMI_MODES_SET_TIMING(hdmi_common_supported_video_mode_lut, HDMI_VFRMT_720x480p60_16_9);
+	MSM_HDMI_MODES_SET_TIMING(hdmi_common_supported_video_mode_lut, HDMI_VFRMT_1280x720p60_16_9);
+	MSM_HDMI_MODES_SET_TIMING(hdmi_common_supported_video_mode_lut, HDMI_VFRMT_1440x480i60_4_3);
+	MSM_HDMI_MODES_SET_TIMING(hdmi_common_supported_video_mode_lut, HDMI_VFRMT_1440x480i60_16_9);
+	MSM_HDMI_MODES_SET_TIMING(hdmi_common_supported_video_mode_lut, HDMI_VFRMT_720x576p50_4_3);
+	MSM_HDMI_MODES_SET_TIMING(hdmi_common_supported_video_mode_lut, HDMI_VFRMT_720x576p50_16_9);
+	MSM_HDMI_MODES_SET_TIMING(hdmi_common_supported_video_mode_lut, HDMI_VFRMT_1280x720p50_16_9);
+	MSM_HDMI_MODES_SET_TIMING(hdmi_common_supported_video_mode_lut, HDMI_VFRMT_1440x576i50_4_3);
+	MSM_HDMI_MODES_SET_TIMING(hdmi_common_supported_video_mode_lut, HDMI_VFRMT_1440x576i50_16_9);
+	MSM_HDMI_MODES_SET_TIMING(hdmi_common_supported_video_mode_lut, HDMI_VFRMT_1920x1080p24_16_9);
 }
 
 #ifdef PORT_DEBUG
@@ -2425,7 +2422,7 @@ static void hdmi_msm_video_setup(int video_format)
 	uint32 end_h     = 0;
 	uint32 start_v   = 0;
 	uint32 end_v     = 0;
-	const struct hdmi_disp_mode_timing_type *timing =
+	const struct msm_hdmi_mode_timing_info *timing =
 		hdmi_common_get_supported_mode(video_format);
 
 	
@@ -2512,7 +2509,7 @@ static void hdmi_msm_audio_acr_setup(boolean enabled, int video_format,
 	uint32 acr_pck_ctrl_reg = HDMI_INP(0x0024);
 
 	if (enabled) {
-		const struct hdmi_disp_mode_timing_type *timing =
+		const struct msm_hdmi_mode_timing_info *timing =
 			hdmi_common_get_supported_mode(video_format);
 		const struct hdmi_msm_audio_arcs *audio_arc =
 			&hdmi_msm_audio_acr_lut[0];
