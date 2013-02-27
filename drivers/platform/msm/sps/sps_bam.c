@@ -23,7 +23,9 @@
 #include "bam.h"
 #include "spsi.h"
 
-#define BAM_IRQ_ALL (BAM_DEV_IRQ_HRESP_ERROR | BAM_DEV_IRQ_ERROR)
+/* All BAM global IRQ sources */
+#define BAM_IRQ_ALL (BAM_DEV_IRQ_HRESP_ERROR | BAM_DEV_IRQ_ERROR |   \
+	BAM_DEV_IRQ_TIMER)
 
 #define BAM_STATE_INIT     (1UL << 1)
 #define BAM_STATE_IRQ      (1UL << 2)
@@ -111,7 +113,7 @@ static irqreturn_t bam_isr(int irq, void *ctxt)
 				BAM_ID(dev), source, mask);
 
 		if ((source & (1UL << 31)) && (dev->props.callback)) {
-			SPS_INFO("sps:bam_isr:bam=0x%x;callback for case %d.",
+			SPS_DBG1("sps:bam_isr:bam=0x%x;callback for case %d.\n",
 				BAM_ID(dev), cb_case);
 			dev->props.callback(cb_case, dev->props.user);
 		}
@@ -1627,7 +1629,7 @@ int sps_bam_pipe_timer_ctrl(struct sps_bam *dev,
 			BAM_PIPE_TIMER_ONESHOT :
 			BAM_PIPE_TIMER_PERIODIC;
 		bam_pipe_timer_config(dev->base, pipe_index, mode,
-				    timer_ctrl->timeout_msec * 10);
+				    timer_ctrl->timeout_msec * 8);
 		break;
 	case SPS_TIMER_OP_RESET:
 		bam_pipe_timer_reset(dev->base, pipe_index);

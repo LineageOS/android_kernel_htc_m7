@@ -158,8 +158,9 @@ enum sps_timer_mode {
 };
 
 enum sps_callback_case {
-	SPS_CALLBACK_BAM_ERROR_IRQ = 1,     
-	SPS_CALLBACK_BAM_HRESP_ERR_IRQ,	    
+	SPS_CALLBACK_BAM_ERROR_IRQ = 1,     /* BAM ERROR IRQ */
+	SPS_CALLBACK_BAM_HRESP_ERR_IRQ,	    /* Erroneous HResponse */
+	SPS_CALLBACK_BAM_TIMER_IRQ,	    /* Inactivity timer */
 };
 
 enum sps_command_type {
