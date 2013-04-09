@@ -126,16 +126,17 @@ static inline void task_name(struct seq_file *m, struct task_struct *p)
 }
 
 static const char * const task_state_array[] = {
-	"R (running)",		
-	"S (sleeping)",		
-	"D (disk sleep)",	
-	"T (stopped)",		
-	"t (tracing stop)",	
-	"Z (zombie)",		
-	"X (dead)",		
-	"x (dead)",		
-	"K (wakekill)",		
-	"W (waking)",		
+	"R (running)",		/*   0 */
+	"S (sleeping)",		/*   1 */
+	"D (disk sleep)",	/*   2 */
+	"T (stopped)",		/*   4 */
+	"t (tracing stop)",	/*   8 */
+	"Z (zombie)",		/*  16 */
+	"X (dead)",		/*  32 */
+	"x (dead)",		/*  64 */
+	"K (wakekill)",		/* 128 */
+	"W (waking)",		/* 256 */
+	"P (parked)",		/* 512 */
 };
 
 static inline const char *get_task_state(struct task_struct *tsk)
