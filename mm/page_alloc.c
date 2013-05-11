@@ -732,6 +732,11 @@ static int fallbacks[MIGRATE_TYPES][4] = {
 	[MIGRATE_ISOLATE]     = { MIGRATE_RESERVE }, 
 };
 
+int *get_migratetype_fallbacks(int mtype)
+{
+        return fallbacks[mtype];
+}
+
 static int move_freepages(struct zone *zone,
 			  struct page *start_page, struct page *end_page,
 			  int migratetype)

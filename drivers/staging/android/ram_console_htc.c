@@ -35,7 +35,7 @@ struct ram_console_buffer {
 	uint8_t     data[0];
 };
 
-#define RAM_CONSOLE_SIG (0x43474244) 
+#define RAM_CONSOLE_SIG (0x43474244)
 
 #ifdef CONFIG_ANDROID_RAM_CONSOLE_EARLY_INIT
 static char __initdata
@@ -62,7 +62,7 @@ static void ram_console_encode_rs8(uint8_t *data, size_t len, uint8_t *ecc)
 {
 	int i;
 	uint16_t par[ECC_SIZE];
-	
+
 	memset(par, 0, sizeof(par));
 	encode_rs8(ram_console_rs_decoder, data, len, par, 0);
 	for (i = 0; i < ECC_SIZE; i++)
@@ -222,7 +222,7 @@ __tagtable(ATAG_LAST_BLDR_LOG, parse_tag_last_bldr_log);
 
 #endif
 
-static void __init
+static void __devinit
 ram_console_save_old(struct ram_console_buffer *buffer, const char *bootinfo,
 	char *dest)
 {
@@ -326,7 +326,7 @@ ram_console_save_old(struct ram_console_buffer *buffer, const char *bootinfo,
 #endif
 }
 
-static int __init ram_console_init(struct ram_console_buffer *buffer,
+static int __devinit ram_console_init(struct ram_console_buffer *buffer,
 				   size_t buffer_size, const char *bootinfo,
 				   char *old_buf)
 {
@@ -420,7 +420,7 @@ static int __init ram_console_early_init(void)
 		ram_console_old_log_init_buffer);
 }
 #else
-static int ram_console_driver_probe(struct platform_device *pdev)
+static int __devinit ram_console_driver_probe(struct platform_device *pdev)
 {
 	struct resource *res = pdev->resource;
 	size_t start;
