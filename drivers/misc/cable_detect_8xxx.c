@@ -131,7 +131,7 @@ static void send_cable_connect_notify(int cable_type)
 	}
 
 	list_for_each_entry(notifier,
-		&g_lh_calbe_detect_notifier_list,
+		&g_lh_cable_detect_notifier_list,
 		cable_notifier_link) {
 			if (notifier->func != NULL) {
 				CABLE_INFO("Send to: %s, type %d\n",
@@ -151,7 +151,7 @@ int cable_detect_register_notifier(struct t_cable_status_notifier *notifier)
 
 	mutex_lock(&cable_notify_sem);
 	list_add(&notifier->cable_notifier_link,
-		&g_lh_calbe_detect_notifier_list);
+		&g_lh_cable_detect_notifier_list);
 	if(the_cable_info.notify_init == 1)
 		notifier->func(cable_get_connect_type());
 	mutex_unlock(&cable_notify_sem);

@@ -117,6 +117,7 @@
 
 #ifdef CONFIG_FB_MSM_HDMI_MHL
 #include <mach/mhl.h>
+#include <video/msm_hdmi_modes.h>
 #endif
 
 #ifdef CONFIG_SUPPORT_USB_SPEAKER
@@ -162,9 +163,8 @@
 #define APQ8064_FW_START	APQ8064_FIXED_AREA_START
 
 #ifdef CONFIG_FB_MSM_HDMI_MHL
-static int hdmi_enable_5v(int on);
-static int hdmi_core_power(int on, int show);
-extern void hdmi_hpd_feature(int enable);
+int hdmi_enable_5v(int on);
+void hdmi_hpd_feature(int on);
 #endif
 
 #define TFA9887_I2C_SLAVE_ADDR  (0x68 >> 1)
@@ -4179,14 +4179,13 @@ static struct resource hdmi_msm_resources[] = {
 	},
 };
 
-static int hdmi_enable_5v(int on);
 static int hdmi_core_power(int on, int show);
 
 static mhl_driving_params m7_driving_params[] = {
-	{.format = HDMI_VFRMT_640x480p60_4_3,	.reg_a3=0xEC, .reg_a6=0x0C},
-	{.format = HDMI_VFRMT_720x480p60_16_9,	.reg_a3=0xEC, .reg_a6=0x0C},
-	{.format = HDMI_VFRMT_1280x720p60_16_9,	.reg_a3=0xFB, .reg_a6=0x0C},
-	{.format = HDMI_VFRMT_720x576p50_16_9,	.reg_a3=0xEC, .reg_a6=0x0C},
+	{.format = HDMI_VFRMT_640x480p60_4_3,  .reg_a3=0xEC, .reg_a6=0x0C},
+	{.format = HDMI_VFRMT_720x480p60_16_9,  .reg_a3=0xEC, .reg_a6=0x0C},
+	{.format = HDMI_VFRMT_1280x720p60_16_9,  .reg_a3=0xFB, .reg_a6=0x0C},
+	{.format = HDMI_VFRMT_720x576p50_16_9,  .reg_a3=0xEC, .reg_a6=0x0C},
 	{.format = HDMI_VFRMT_1920x1080p24_16_9, .reg_a3=0xFB, .reg_a6=0x0C},
 	{.format = HDMI_VFRMT_1920x1080p30_16_9, .reg_a3=0xFB, .reg_a6=0x0C},
 };
@@ -4211,7 +4210,7 @@ static struct platform_device hdmi_msm_device = {
 #define BOOST_5V	"ext_5v"
 static struct regulator *reg_boost_5v = NULL;
 
-static int hdmi_enable_5v(int on)
+int hdmi_enable_5v(int on)
 {
 	static int prev_on = 0;
 	int rc;
