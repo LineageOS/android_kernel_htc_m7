@@ -1,0 +1,72 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "htwJbd8",
+        "filename": "arch/arm/mach-msm/board-m7.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 166,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2013-05-14T07:24:55Z",
+      "side": 1,
+      "message": "why aren\u0027t these static anymore? do they need to be exposed to outside functions?",
+      "revId": "b18a197c776b88208e0b49ff01f9e6c07cd00cf8",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "hjxs0Zs",
+        "filename": "arch/arm/mach-msm/include/mach/board.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 790,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2013-05-14T07:24:55Z",
+      "side": 1,
+      "message": "as much as I like proper spelling, isn\u0027t this an unrelated change?",
+      "revId": "b18a197c776b88208e0b49ff01f9e6c07cd00cf8",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "hhxpFYw",
+        "filename": "drivers/misc/cable_detect_8xxx.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 134,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2013-05-14T07:24:55Z",
+      "side": 1,
+      "message": "unrelated change",
+      "revId": "b18a197c776b88208e0b49ff01f9e6c07cd00cf8",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "hvwEKcc",
+        "filename": "drivers/misc/cable_detect_8xxx.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 154,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2013-05-14T07:24:55Z",
+      "side": 1,
+      "message": "unrelated change",
+      "revId": "b18a197c776b88208e0b49ff01f9e6c07cd00cf8",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
