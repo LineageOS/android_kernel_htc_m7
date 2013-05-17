@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "huuGnWQ",
+        "filename": "drivers/leds/leds-pm8921.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 198,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2013-05-17T01:55:04Z",
+      "side": 1,
+      "message": "Linux kernel style puts trailing { on the same line, except for the { that opens function declarations.",
+      "revId": "0071bcb9badf17ed2a4a4426c1b7006f56530aa0",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
