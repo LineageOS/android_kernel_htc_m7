@@ -2209,7 +2209,7 @@ static void synaptics_ts_s2w_check_wake(void)
 static void synaptics_ts_finger_func(struct synaptics_ts_data *ts)
 {
 	int ret;
-	uint8_t buf[ts->finger_support * 8];
+	uint8_t buf[((ts->finger_support * 21 + 3) / 4)];
 #ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_SWEEP2WAKE
 	int report_ret = 0;
 	int ts_is_on = 0;
