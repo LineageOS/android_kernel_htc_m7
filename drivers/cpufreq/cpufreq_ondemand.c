@@ -618,8 +618,8 @@ static ssize_t store_powersave_bias(struct kobject *a, struct attribute *b,
 
 	dbs_tuners_ins.powersave_bias = input;
 
-	get_online_cpus();
 	mutex_lock(&dbs_mutex);
+	get_online_cpus();
 
 	if (!bypass) {
 		if (reenable_timer) {
@@ -698,8 +698,8 @@ skip_this_cpu_bypass:
 		}
 	}
 
-	mutex_unlock(&dbs_mutex);
 	put_online_cpus();
+	mutex_unlock(&dbs_mutex);
 
 	return count;
 }
