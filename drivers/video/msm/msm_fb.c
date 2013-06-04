@@ -58,11 +58,16 @@
 #define MSM_FB_NUM	3
 #endif
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+#undef CONFIG_HAS_EARLYSUSPEND
+#endif
+
 #ifdef CONFIG_INPUT_CAPELLA_CM3629
 extern int get_lightsensoradc(void);
 #else
 static inline int get_lightsensoradc(void) { return 0; }
 #endif
+
 static unsigned char *fbram;
 static unsigned char *fbram_phys;
 static int fbram_size;
