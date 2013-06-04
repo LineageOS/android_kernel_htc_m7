@@ -202,6 +202,21 @@ static void msm_hs_start_rx_locked(struct uart_port *uport);
 #define UARTDM_TO_MSM(uart_port) \
 	container_of((uart_port), struct msm_hs_port, uport)
 
+struct uart_port * msm_hs_get_port_by_id(int num)
+{
+	struct uart_port *uport;
+	struct msm_hs_port *msm_uport;
+
+	if (num < 0 || num >= UARTDM_NR)
+		return NULL;
+
+	msm_uport = &q_uart_port[num];
+
+	uport = &(msm_uport->uport);
+
+	return uport;
+}
+
 static ssize_t show_clock(struct device *dev, struct device_attribute *attr,
 			  char *buf)
 {
