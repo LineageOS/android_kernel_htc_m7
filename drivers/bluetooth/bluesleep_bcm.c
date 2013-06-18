@@ -80,15 +80,22 @@ struct bluesleep_info {
 
 /* work function */
 static void bluesleep_sleep_work(struct work_struct *work);
+static void bluesleep_start_wq(struct work_struct *work);
+static void bluesleep_stop_wq(struct work_struct *work);
 
 /* work queue */
 DECLARE_DELAYED_WORK(sleep_workqueue, bluesleep_sleep_work);
+DECLARE_DELAYED_WORK(bluesleep_start_workqueue, bluesleep_start_wq);
+DECLARE_DELAYED_WORK(bluesleep_stop_workqueue, bluesleep_stop_wq);
 
 /* Macros for handling sleep work */
 #define bluesleep_rx_busy()     schedule_delayed_work(&sleep_workqueue, 0)
 #define bluesleep_tx_busy()     schedule_delayed_work(&sleep_workqueue, 0)
 #define bluesleep_rx_idle()     schedule_delayed_work(&sleep_workqueue, 0)
 #define bluesleep_tx_idle()     schedule_delayed_work(&sleep_workqueue, 0)
+
+#define bluesleep_start()       schedule_delayed_work(&bluesleep_start_workqueue, 0)
+#define bluesleep_stop()        schedule_delayed_work(&bluesleep_stop_workqueue, 0)
 
 /* 10 second timeout */
 #define TX_TIMER_INTERVAL  10
@@ -119,8 +126,6 @@ static atomic_t open_count = ATOMIC_INIT(1);
 static int bluesleep_hci_event(struct notifier_block *this,
 			       unsigned long event, void *data);
 #endif
-static int bluesleep_start(void);
-static void bluesleep_stop(void);
 
 /*
  * Global variables
@@ -306,7 +311,6 @@ static int bluesleep_write_proc_lpm(struct file *file, const char *buffer,
 		BT_DBG("bluesleep unregister");
 		bluesleep_stop();
 		has_lpm_enabled = false;
-		bsi->uport = NULL;
 	} else {
 		/* HCI_DEV_REG */
 		if (!has_lpm_enabled) {
@@ -438,21 +442,17 @@ static irqreturn_t bluesleep_hostwake_isr(int irq, void *dev_id)
  * @return On success, 0. On error, -1, and <code>errno</code> is set
  * appropriately.
  */
-static int bluesleep_start(void)
+static void bluesleep_start_wq(struct work_struct *work)
 {
 	int retval;
-	unsigned long irq_flags;
 
-	spin_lock_irqsave(&rw_lock, irq_flags);
 	if (test_bit(BT_PROTO, &flags)) {
-		spin_unlock_irqrestore(&rw_lock, irq_flags);
-		return 0;
+		return;
 	}
-	spin_unlock_irqrestore(&rw_lock, irq_flags);
 
 	if (!atomic_dec_and_test(&open_count)) {
 		atomic_inc(&open_count);
-		return -EBUSY;
+		return;
 	}
 
 	/* start the timer */
@@ -470,24 +470,19 @@ static int bluesleep_start(void)
 #endif
 	set_bit(BT_PROTO, &flags);
 	wake_lock(&bsi->wake_lock);
-	return 0;
+	return;
 fail:
 	del_timer(&tx_timer);
 	atomic_inc(&open_count);
-
-	return retval;
 }
 
 /**
  * Stops the Sleep-Mode Protocol on the Host.
  */
-static void bluesleep_stop(void)
+static void bluesleep_stop_wq(struct work_struct *work)
 {
-	unsigned long irq_flags;
-
-	spin_lock_irqsave(&rw_lock, irq_flags);
 	if (!test_bit(BT_PROTO, &flags)) {
-		spin_unlock_irqrestore(&rw_lock, irq_flags);
+		bsi->uport = NULL;
 		return;
 	}
 	/* assert BT_WAKE */
@@ -497,7 +492,6 @@ static void bluesleep_stop(void)
 	clear_bit(BT_PROTO, &flags);
 
 	atomic_inc(&open_count);
-	spin_unlock_irqrestore(&rw_lock, irq_flags);
 
 	if (test_bit(BT_ASLEEP, &flags)) {
 		clear_bit(BT_ASLEEP, &flags);
@@ -508,6 +502,8 @@ static void bluesleep_stop(void)
 		BT_ERR("Couldn't disable hostwake IRQ wakeup mode\n");
 #endif
 	wake_lock_timeout(&bsi->wake_lock, HZ / 2);
+
+	bsi->uport = NULL;
 }
 
 /**
