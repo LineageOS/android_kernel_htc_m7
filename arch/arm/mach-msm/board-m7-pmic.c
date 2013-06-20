@@ -510,7 +510,7 @@ pm8921_chg_pdata __devinitdata = {
 	.max_voltage		= MAX_VOLTAGE_MV,
 	.min_voltage		= 3200,
 	.resume_voltage_delta	= 50,
-	.term_current		= 50,
+	.term_current		= 75,
 	.cool_temp		= 0,
 	.warm_temp		= 48,
 	.temp_check_period	= 1,
@@ -528,6 +528,7 @@ pm8921_chg_pdata __devinitdata = {
 	.cold_thr = PM_SMBC_BATT_TEMP_COLD_THR__HIGH,
 	.hot_thr = PM_SMBC_BATT_TEMP_HOT_THR__LOW,
 	.ext_usb = &smb_ext_chg,
+	.rconn_mohm		= 10, 
 };
 
 static struct pm8xxx_ccadc_platform_data
