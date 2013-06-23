@@ -1,0 +1,55 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "iL3EREA",
+        "filename": "arch/arm/mach-msm/board-m7.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1476,
+      "author": {
+        "id": 523
+      },
+      "writtenOn": "2013-06-23T18:34:22Z",
+      "side": 1,
+      "message": "that\u0027s not linux style :-D",
+      "revId": "06818599ca24d5dd67d05882829802a5be60b6da",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "iJ3BgDE",
+        "filename": "arch/arm/mach-msm/board-m7.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1610,
+      "author": {
+        "id": 523
+      },
+      "writtenOn": "2013-06-23T18:34:22Z",
+      "side": 1,
+      "message": "another one",
+      "revId": "06818599ca24d5dd67d05882829802a5be60b6da",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "iH3djBM",
+        "filename": "arch/arm/mach-msm/board-m7.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 3059,
+      "author": {
+        "id": 523
+      },
+      "writtenOn": "2013-06-23T18:34:22Z",
+      "side": 1,
+      "message": "same here",
+      "revId": "06818599ca24d5dd67d05882829802a5be60b6da",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
