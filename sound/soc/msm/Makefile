@@ -67,7 +67,7 @@ ifdef CONFIG_ARCH_DUMMY
 snd-soc-msm8960-objs := apq8064_M7.o mpq8064.o
 else ifdef CONFIG_ARCH_DUMMY
 else
-snd-soc-msm8960-objs := apq8064.o mpq8064.o
+snd-soc-msm8960-objs := apq8064_M7.o mpq8064.o
 endif
 obj-$(CONFIG_SND_SOC_MSM8960) += snd-soc-msm8960.o
 else
