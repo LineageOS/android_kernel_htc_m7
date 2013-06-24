@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "iFMJl5Q",
+        "filename": "sound/soc/msm/Makefile",
+        "patchSetId": 1
+      },
+      "lineNbr": 70,
+      "author": {
+        "id": 5047
+      },
+      "writtenOn": "2013-06-24T22:46:45Z",
+      "side": 1,
+      "message": "This is renamed just to using the same filenames as the new sourcecode.",
+      "parentUuid": "iJPYTx8",
+      "revId": "d60ba5c7e5b3e4acd144ea121c170e65a0cacdde",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "iNPOx1k",
         "filename": "sound/soc/msm/msm-compr-q6.c",
         "patchSetId": 1
