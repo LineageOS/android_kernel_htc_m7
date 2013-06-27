@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "dac4157f_4d4b595a",
+        "filename": "drivers/i2c/chips/Kconfig",
+        "patchSetId": 2
+      },
+      "lineNbr": 197,
+      "author": {
+        "id": 3727
+      },
+      "writtenOn": "2013-06-27T15:49:47Z",
+      "side": 1,
+      "message": "wat\u0027s about the changes in cyanogenmod_m7_defconfig?",
+      "revId": "ab583464c0b831039c634975880de00bf5ce7821",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
