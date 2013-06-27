@@ -649,6 +649,28 @@ struct stats_buff {
 	int fd;
 };
 
+struct stats_htc_af_input {
+	int preview_width;
+	int preview_height;
+	int roi_x;
+	int roi_y;
+	int roi_width;
+	int roi_height;
+	uint8_t af_use_sw_sharpness;
+};
+
+struct stats_htc_af_output {
+	uint32_t hw_frame_id;
+	uint32_t sw_frame_id;
+	uint32_t actuator_frame_id;
+	uint32_t sw_sharpness_value;
+};
+
+struct stats_htc_af {
+	struct stats_htc_af_input af_input;
+	struct stats_htc_af_output af_output;
+};
+
 struct msm_stats_buf {
 	uint8_t awb_ymin;
 	struct stats_buff aec;
@@ -665,6 +687,7 @@ struct msm_stats_buf {
 	int length;
 	struct ion_handle *handle;
 	uint32_t frame_id;
+	struct stats_htc_af htc_af_info;
 };
 #define MSM_V4L2_EXT_CAPTURE_MODE_DEFAULT 0
 #define MSM_V4L2_EXT_CAPTURE_MODE_PREVIEW \
@@ -818,7 +841,8 @@ struct msm_snapshot_pp_status {
 #define CFG_SET_ACTUATOR_AF_VALUE		71
 #define CFG_SET_HDR_OUTDOOR_FLAG		72 
 #define CFG_SET_OIS_CALIBRATION		73 
-#define CFG_MAX			        74
+#define CFG_SET_VCM_CALIBRATION 74 
+#define CFG_MAX			        75
 
 #define CFG_I2C_IOCTL_R_OTP 70
 
@@ -1120,6 +1144,7 @@ enum msm_sensor_resolution_t {
 	MSM_SENSOR_RES_VIDEO_HFR_5_3,
 	MSM_SENSOR_RES_5_3,
 	MSM_SENSOR_RES_ZOE,
+	MSM_SENSOR_RES_VIDEO_60FPS,
 	MSM_SENSOR_RES_2,
 	MSM_SENSOR_RES_3,
 	MSM_SENSOR_RES_4,
@@ -1149,6 +1174,9 @@ struct msm_sensor_output_info_t {
 	uint8_t binning_rawchip;
 	uint8_t is_hdr;
 	
+	uint8_t yushan_status_line_enable;
+	uint8_t yushan_status_line; 
+	uint8_t yushan_sensor_status_line; 
 };
 
 struct sensor_output_info_t {
@@ -1279,6 +1307,17 @@ typedef struct{
 	uint8_t AF_INF_LSB;
 	uint8_t AF_MACRO_MSB;
 	uint8_t AF_MACRO_LSB;
+	
+	uint8_t VCM_BIAS;
+	uint8_t VCM_OFFSET;
+	uint8_t VCM_BOTTOM_MECH_MSB;
+	uint8_t VCM_BOTTOM_MECH_LSB;
+	uint8_t VCM_TOP_MECH_MSB;
+	uint8_t VCM_TOP_MECH_LSB;
+	uint8_t VCM_VENDOR_ID_VERSION;
+	
+	uint8_t VCM_VENDOR;
+	uint8_t ACT_ID;
 }af_value_t;
 
 struct sensor_cfg_data {
@@ -1287,7 +1326,7 @@ struct sensor_cfg_data {
 	int rs;
 	uint8_t max_steps;
 	int8_t sensor_ver;
-  af_value_t af_value;
+	af_value_t af_value;
 
 	union {
 		int8_t effect;
@@ -1501,6 +1540,15 @@ struct msm_actuator_get_ois_cal_info_t {
 	int8_t cal_method;
 	int8_t cal_current_point;
 	int8_t cal_max_point;
+	int8_t bypass_ois_cal;
+};
+
+struct msm_actuator_get_vcm_cal_info_t {
+    uint8_t offset;
+    uint8_t bias;
+    uint16_t hall_max;
+    uint16_t hall_min;
+    uint8_t rc;
 };
 
 struct msm_flash_ois_cal_data_t {
@@ -1528,6 +1576,15 @@ struct msm_actuator_af_OTP_info_t {
 	uint16_t VCM_Start;
 	uint16_t VCM_Infinity;
 	uint16_t VCM_Macro;
+	
+	uint8_t VCM_Bias;
+	uint8_t VCM_Offset;
+	uint16_t VCM_Bottom_Mech;
+	uint16_t VCM_Top_Mech;
+	uint8_t VCM_Vendor_Id_Version;
+	
+	uint8_t VCM_Vendor;
+	uint8_t act_id;
 };
 
 enum af_camera_name {
@@ -1546,6 +1603,7 @@ struct msm_actuator_cfg_data {
 	int cfgtype;
 	uint8_t is_af_supported;
 	uint8_t is_ois_supported;
+    uint8_t is_cal_supported; 
 	union {
 		struct msm_actuator_move_params_t move;
 		struct msm_actuator_set_info_t set_info;
@@ -1559,6 +1617,7 @@ struct msm_actuator_cfg_data {
 		af_value_t af_value;
 		struct msm_actuator_get_ois_cal_info_t get_osi_cal_info; 
 		struct sensor_actuator_info_t sensor_actuator_info; 
+		struct msm_actuator_get_vcm_cal_info_t get_vcm_cal_info; 
 	} cfg;
 };
 
