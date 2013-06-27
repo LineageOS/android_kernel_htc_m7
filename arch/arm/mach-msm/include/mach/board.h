@@ -313,7 +313,11 @@ enum msm_camera_pixel_order_default {
 	MSM_CAMERA_PIXEL_ORDER_BG,
 	MSM_CAMERA_PIXEL_ORDER_GB,
 };
-
+enum sensor_mount_angle {
+	ANGLE_90,
+	ANGLE_180,
+	ANGLE_270,
+};
 struct msm_camera_sensor_platform_info {
 	int mount_angle;
 	int sensor_reset;
@@ -332,6 +336,7 @@ struct msm_camera_sensor_platform_info {
 	enum msm_camera_pixel_order_default pixel_order_default;	
 	enum sensor_flip_mirror_info mirror_flip;
 	void *privacy_light_info;
+	enum sensor_mount_angle sensor_mount_angle; 
 	
 };
 
@@ -358,6 +363,17 @@ struct msm_actuator_info {
 	
 	
 	int otp_diviation;
+	
+	
+	void (*vcm_wa_vreg_on) (void);
+	void (*vcm_wa_vreg_off) (void);
+	
+	
+	void (*oisbinder_i2c_add_driver) (void* i2c_client);
+	void (*oisbinder_open_init) (void);
+	void (*oisbinder_power_down) (void);
+	int32_t (*oisbinder_act_set_ois_mode) (int ois_mode);
+	int32_t (*oisbinder_mappingTbl_i2c_write) (int startup_mode, void * sensor_actuator_info);
 	
 };
 
@@ -409,7 +425,6 @@ struct msm_camera_sensor_info {
 	int (*camera_power_on)(void);
 	int (*camera_power_off)(void);
 	void (*camera_yushanii_probed)(enum htc_camera_image_type_board);
-	void (*camera_on_check_vcm)(void); 
 	enum htc_camera_image_type_board htc_image;	
 	int use_rawchip;
 	int hdr_mode;

@@ -366,7 +366,7 @@ static struct msm_camera_i2c_reg_conf ar0260_recommend_settings[] = {
 { 0x3C40, 0xAC34},	
 {0x301C, 0x0102},
 {0xffff,50},
-#if 0
+#ifndef CONFIG_RAWCHIPII
 { 0x3C40, 0xAC36},	
 {0x301C, 0x0},
 #else
