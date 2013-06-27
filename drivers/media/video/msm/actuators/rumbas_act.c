@@ -100,6 +100,87 @@ static struct damping_t g_damping_params[] = {
 
 static struct msm_actuator_info *rumbas_msm_actuator_info;
 
+void rumbas_set_internal_clk(void);
+void rumbas_disable_OIS(void);
+void rumbas_move_lens_position(int16_t next_lens_position);
+int32_t rumbas_poweron_af(void);
+void rumbas_poweroff_af(void);
+int get_fixed_lens_position(void);
+
+void rumbas_do_cam_vcm_on_cb(void)
+{
+	int rc = 0;
+	int fixed_lens_position;
+	pr_info("[CAM_VCM_CB]  %s called\n", __func__);
+
+	rumbas_msm_actuator_info->vcm_wa_vreg_on();
+	mdelay(5);
+
+	
+	rc = rumbas_poweron_af();
+	if (rc < 0) {
+		pr_err("%s rumbas power on failed\n", __func__);
+		rumbas_msm_actuator_info->vcm_wa_vreg_off();
+		return;
+	}
+	mdelay(50);
+
+	rumbas_set_internal_clk();
+	rumbas_disable_OIS();
+	fixed_lens_position = get_fixed_lens_position();
+
+#if 1
+#if 1
+	pr_info("[CAM_VCM_CB]  cam_vcm_on_cb()	 call rumbas_move_lens_position(%d)\n", 100);
+	rumbas_move_lens_position(100);
+	mdelay(1);
+	pr_info("[CAM_VCM_CB]  cam_vcm_on_cb()	 call rumbas_move_lens_position(%d)\n", 200);
+	rumbas_move_lens_position(200);
+	mdelay(1);
+#else
+	pr_info("[CAM_VCM_CB]  cam_vcm_on_cb()	 call rumbas_move_lens_position(%d)\n", fixed_lens_position);
+	rumbas_move_lens_position(fixed_lens_position);
+	mdelay(1);
+#endif
+	pr_info("[CAM_VCM_CB]  cam_vcm_on_cb()	 call rumbas_move_lens_position()	DONE\n");
+#endif
+
+}
+void rumbas_do_cam_vcm_off_cb(void)
+{
+#if 1
+	pr_info("[CAM_VCM_CB]  cam_vcm_on_cb()	 call rumbas_move_lens_position(%d)\n", 50);
+	rumbas_move_lens_position(50);
+	mdelay(1);
+	pr_info("[CAM_VCM_CB]  cam_vcm_on_cb()	 call rumbas_move_lens_position(%d)\n", 20);
+	rumbas_move_lens_position(20);
+	mdelay(40);
+	pr_info("[CAM_VCM_CB]  cam_vcm_on_cb()	 call rumbas_move_lens_position(%d)\n", 10);
+	rumbas_move_lens_position(10);
+	mdelay(10);
+	pr_info("[CAM_VCM_CB]  cam_vcm_on_cb()	 call rumbas_move_lens_position(%d)\n", 5);
+	rumbas_move_lens_position(5);
+	mdelay(1);
+
+	pr_info("[CAM_VCM_CB]  do_cam_vcm_off_work()   call rumbas_move_lens_position(0)\n");
+	rumbas_move_lens_position(0);
+	mdelay(10);
+	pr_info("[CAM_VCM_CB]  do_cam_vcm_off_work()   call rumbas_move_lens_position()   DONE\n");
+
+	
+	rumbas_move_lens_position_by_stroke(45);
+	mdelay(20);
+	rumbas_move_lens_position_by_stroke(40);
+	mdelay(20);
+	rumbas_move_lens_position_by_stroke(30);
+	mdelay(20);
+	rumbas_move_lens_position_by_stroke(5);
+	mdelay(10);
+#endif
+	rumbas_poweroff_af();
+
+	rumbas_msm_actuator_info->vcm_wa_vreg_off();
+}
 
 int32_t load_cmd_prevalue(int cmd_id, uint8_t *byte_data)
 {
@@ -1214,13 +1295,37 @@ static int32_t rumbas_act_init_focus(struct msm_actuator_ctrl_t *a_ctrl)
 
 	
 	if (rumbas_act_t.ois_ready_version) {
+		if (a_ctrl->af_OTP_info.act_id == 0x11 || a_ctrl->af_OTP_info.act_id == 0x31) { 
+			memset(byte_data, 0, sizeof(byte_data));
+			load_cmd_prevalue(0x39, &byte_data[0]);
+			((uint16_t *)byte_data)[0] = ENDIAN(19);
+			((uint16_t *)byte_data)[1] = ENDIAN(150);
+			((uint16_t *)byte_data)[2] = ENDIAN(100);
+			rc = msm_camera_i2c_write_seq(&(rumbas_act_t.i2c_client), 0x39, &byte_data[0], 8);
+			if (rc < 0) {
+				pr_err("[OIS] %s 0x39 cmd   i2c write failed (%d)\n", __func__, rc);
+			}
+		}
+
 		memset(byte_data, 0, sizeof(byte_data));
 		load_cmd_prevalue(0x27, &byte_data[0]);
-		((int16_t *)byte_data)[0] = ENDIAN(-10);
+		if (a_ctrl->af_OTP_info.act_id == 0x11 || a_ctrl->af_OTP_info.act_id == 0x31) 
+			((int16_t *)byte_data)[0] = ENDIAN(8);
+		else 
+			((int16_t *)byte_data)[0] = ENDIAN(-10);
 		rc = msm_camera_i2c_write_seq(&(rumbas_act_t.i2c_client),
 			0x27, &byte_data[0], 8);
 		if (rc < 0) {
 			pr_err("%s 0x27 cmd  i2c write failed (%d)\n", __func__, rc);
+		}
+
+		if(!board_mfg_mode()) {
+			load_cmd_prevalue(0x10, &byte_data[0]);
+			byte_data[6] = (byte_data[6] & 0xFD) |(0x01 << 1); 
+			rc = msm_camera_i2c_write_seq(&(rumbas_act_t.i2c_client), 0x10, &byte_data[0], 8);
+			if (rc < 0) {
+				pr_err("[RUMBA_S] %s  set fast reset mode , i2c write failed (%d)\n", __func__, rc);
+			}
 		}
 	}
 	
@@ -1316,11 +1421,13 @@ int32_t rumbas_act_set_af_value(struct msm_actuator_ctrl_t *a_ctrl, af_value_t a
 		}
 		a_ctrl->af_OTP_info.VCM_Macro = (OTP_data[4]<<8 | OTP_data[5]);
 	}
+	a_ctrl->af_OTP_info.act_id = af_value.ACT_ID;
 	pr_info("OTP_data[2] %d OTP_data[3] %d OTP_data[4] %d OTP_data[5] %d\n",
 		OTP_data[2], OTP_data[3], OTP_data[4], OTP_data[5]);
 	pr_info("VCM_Start = %d\n", a_ctrl->af_OTP_info.VCM_Start);
 	pr_info("VCM_Infinity = %d\n", a_ctrl->af_OTP_info.VCM_Infinity);
 	pr_info("VCM_Macro = %d\n", a_ctrl->af_OTP_info.VCM_Macro);
+	pr_info("ACT_ID = 0x%x\n", a_ctrl->af_OTP_info.act_id);
 	return rc;
 }
 
@@ -1667,6 +1774,11 @@ static struct msm_actuator_ctrl_t rumbas_act_t = {
 		.a_create_subdevice = rumbas_act_create_subdevice,
 		.a_config = rumbas_act_config,
 		.is_ois_supported = 1,
+		
+		.do_vcm_on_cb	= rumbas_do_cam_vcm_on_cb,
+		.do_vcm_off_cb	= rumbas_do_cam_vcm_off_cb,
+		.actuator_poweroff_af = rumbas_poweroff_af,
+		
 	},
 
 	.i2c_client = {

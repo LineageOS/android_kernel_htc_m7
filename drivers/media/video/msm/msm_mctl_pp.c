@@ -551,6 +551,14 @@ int msm_mctl_pp_proc_vpe_cmd(
 			kfree(zoom);
 			return -EFAULT;
 		}
+		if ((void *)zoom->pp_frame_cmd.src_buf_handle == NULL ||
+			(void *)zoom->pp_frame_cmd.dest_buf_handle == NULL) {
+			pr_err("%s: src_buf_handle 0x%x dest_buf_handle 0x%x\n",
+				__func__, zoom->pp_frame_cmd.src_buf_handle, zoom->pp_frame_cmd.dest_buf_handle);
+			rc = -EINVAL;
+			kfree(zoom);
+			break;
+		}
 		D("%s: src=0x%x, dest=0x%x,cookie=0x%x,action=0x%x,path=0x%x",
 				__func__, zoom->pp_frame_cmd.src_buf_handle,
 				zoom->pp_frame_cmd.dest_buf_handle,

@@ -31,6 +31,8 @@
 
 #include "msm.h"
 
+#include "swfv/swfa_k.h"
+
 #ifdef CONFIG_MSM_CAMERA_DEBUG
 #define D(fmt, args...) pr_debug("msm_isp: " fmt, ##args)
 #else
@@ -38,6 +40,8 @@
 #endif
 
 #define MSM_FRAME_AXI_MAX_BUF 32
+#define BAYER_FOCUS_BUF_SIZE 		(18 * 14 * 10 * 4)
+#define SW_FOCUS_BUF_SIZE 			32*1024
 
 
 void *msm_isp_sync_alloc(int size,
@@ -336,6 +340,9 @@ static int msm_isp_notify_vfe(struct v4l2_subdev *sd,
 	struct msm_cam_media_controller *pmctl =
 		(struct msm_cam_media_controller *)v4l2_get_subdev_hostdata(sd);
 	struct msm_free_buf buf;
+	unsigned long pphy;
+	int newWidth;
+	int newHeight;
 
 	if (!pmctl) {
 		pr_err("%s: no context in dsp callback.\n", __func__);
@@ -491,7 +498,6 @@ static int msm_isp_notify_vfe(struct v4l2_subdev *sd,
 			rc = -EINVAL;
 			return rc;
 		}
-
 		isp_event->isp_data.isp_msg.msg_id = isp_stats->id;
 		isp_event->isp_data.isp_msg.frame_id =
 			isp_stats->frameCounter;
@@ -508,9 +514,41 @@ static int msm_isp_notify_vfe(struct v4l2_subdev *sd,
 			stats.aec.fd = stats.fd;
 			break;
 		case MSG_ID_STATS_AF:
-		case MSG_ID_STATS_BF:
 			stats.af.buff = stats.buffer;
 			stats.af.fd = stats.fd;
+			break;
+		case MSG_ID_STATS_BF:
+		    newWidth = 0;
+		    newHeight = 0;
+		    stats.htc_af_info.af_input.af_use_sw_sharpness = false;
+		    if (pmctl->htc_af_info.af_input.af_use_sw_sharpness) {
+
+			    pphy = msm_pmem_stats_ptov_lookup_2(pmctl,
+						isp_stats->buffer,
+						&(stats.fd));
+
+			    memset((uint8_t *)(pphy+BAYER_FOCUS_BUF_SIZE), 0x00, SW_FOCUS_BUF_SIZE);
+
+			    rc = swfa_Transform2((uint8_t *)(pphy+BAYER_FOCUS_BUF_SIZE),
+			                          &newWidth,
+			                          &newHeight);
+
+			    if(!rc)
+				    stats.htc_af_info.af_input.af_use_sw_sharpness = false;
+			    else
+				    stats.htc_af_info.af_input.af_use_sw_sharpness = pmctl->htc_af_info.af_input.af_use_sw_sharpness;
+			}
+
+			stats.htc_af_info.af_input.preview_width = pmctl->htc_af_info.af_input.preview_width;
+			stats.htc_af_info.af_input.preview_height = pmctl->htc_af_info.af_input.preview_height;
+			stats.htc_af_info.af_input.roi_x = pmctl->htc_af_info.af_input.roi_x;
+			stats.htc_af_info.af_input.roi_y = pmctl->htc_af_info.af_input.roi_y;
+			stats.htc_af_info.af_input.roi_width = newWidth;
+			stats.htc_af_info.af_input.roi_height = newHeight;
+
+			stats.af.buff = stats.buffer;
+			stats.af.fd = stats.fd;
+
 			break;
 		case MSG_ID_STATS_AWB:
 			stats.awb.buff = stats.buffer;
