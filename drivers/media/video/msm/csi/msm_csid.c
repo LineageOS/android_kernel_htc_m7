@@ -54,7 +54,7 @@
 #define CSID_RST_DONE_IRQ_BITSHIFT                  11
 #define CSID_RST_STB_ALL                            0x7FFF
 
-#define DBG_CSID 0
+#define DBG_CSID 1
 
 static int msm_csid_cid_lut(
 	struct msm_camera_csid_lut_params *csid_lut_params,
@@ -133,7 +133,7 @@ static irqreturn_t msm_csid_irq(int irq_num, void *data)
 	uint32_t irq;
 	struct csid_device *csid_dev = data;
 	irq = msm_io_r(csid_dev->base + CSID_IRQ_STATUS_ADDR);
-	CDBG("%s CSID%d_IRQ_STATUS_ADDR = 0x%x\n",
+	pr_info("%s CSID%d_IRQ_STATUS_ADDR = 0x%x\n",
 		 __func__, csid_dev->pdev->id, irq);
 	if (irq & (0x1 << CSID_RST_DONE_IRQ_BITSHIFT))
 			complete(&csid_dev->reset_complete);
