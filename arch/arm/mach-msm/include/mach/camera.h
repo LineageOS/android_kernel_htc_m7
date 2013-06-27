@@ -362,6 +362,14 @@ struct msm_actuator_ctrl {
 	int (*a_create_subdevice)(void *, void *);
 	int (*a_config)(void __user *);
 	int is_ois_supported;
+    int is_cal_supported; 
+	
+	void (*do_vcm_on_cb)(void);
+	void (*do_vcm_off_cb)(void);
+	void (*actuator_poweroff_af)(void);
+	struct mutex *actrl_vcm_on_mut; 
+	enum cam_vcm_onoff_type *actrl_vcm_wa_camera_on;
+	
 };
 
 struct msm_strobe_flash_ctrl {
@@ -496,6 +504,7 @@ struct msm_pmem_region {
 	struct file *file;
 	struct msm_pmem_info info;
 	struct ion_handle *handle;
+	unsigned long vaddr;
 };
 
 struct axidata {
