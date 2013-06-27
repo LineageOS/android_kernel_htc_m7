@@ -28,6 +28,8 @@
 #include "msm.h"
 #include "msm_ispif.h"
 
+#include "swfv/swfa_k.h"
+
 #ifdef CONFIG_MSM_CAMERA_DEBUG
 #define D(fmt, args...) pr_debug("msm_mctl_buf: " fmt, ##args)
 #else
@@ -422,8 +424,10 @@ int msm_mctl_buf_done_proc(
 		int image_mode, struct msm_free_buf *fbuf,
 		uint32_t *frame_id, int gen_timestamp)
 {
+	int rc = 0;
 	struct msm_frame_buffer *buf = NULL;
 	int del_buf = 1;
+	struct videobuf2_contig_pmem *mem;
 
 	buf = msm_mctl_buf_find(pmctl, pcam_inst, del_buf,
 					image_mode, fbuf);
@@ -432,6 +436,26 @@ int msm_mctl_buf_done_proc(
 			__func__, fbuf->ch_paddr[0]);
 		return -EINVAL;
 	}
+
+	mem = vb2_plane_cookie(&buf->vidbuf, 0);
+
+	if(pmctl->htc_af_info.af_input.preview_width*pmctl->htc_af_info.af_input.preview_height > mem->size)
+	    pmctl->htc_af_info.af_input.af_use_sw_sharpness = false;
+
+	if (pmctl->htc_af_info.af_input.af_use_sw_sharpness && image_mode == MSM_V4L2_EXT_CAPTURE_MODE_PREVIEW)
+	{
+	    rc = swfa_FeatureAnalysis((uint8_t* )mem->arm_vaddr,
+			                          pmctl->htc_af_info.af_input.preview_width,
+			                          pmctl->htc_af_info.af_input.preview_height,
+			                          pmctl->htc_af_info.af_input.roi_x,
+			                          pmctl->htc_af_info.af_input.roi_y,
+			                          pmctl->htc_af_info.af_input.roi_width,
+			                          pmctl->htc_af_info.af_input.roi_height,
+			                          1);
+	    if(!rc)
+	        pmctl->htc_af_info.af_input.af_use_sw_sharpness = false;
+	}
+
 	if (gen_timestamp) {
 		if (frame_id)
 			buf->vidbuf.v4l2_buf.sequence = *frame_id;

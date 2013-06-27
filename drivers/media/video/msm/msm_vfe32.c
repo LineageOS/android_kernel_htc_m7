@@ -241,6 +241,7 @@ static struct vfe32_cmd_type vfe32_cmd[] = {
 		{VFE_CMD_STATS_BHIST_STOP},
 	{VFE_CMD_SET_BAYER_ENABLE},
 		{VFE_CMD_SET_CAMERA_MODE}, 
+		{VFE_CMD_SET_SW_SHARPNESS_CMD},
 };
 
 uint32_t vfe32_AXI_WM_CFG[] = {
@@ -2591,6 +2592,14 @@ static int vfe32_proc_general(
 		vfe32_ctrl->vfe_camera_mode = vfe_cam_mode;
 		break;
 	
+	case VFE_CMD_SET_SW_SHARPNESS_CMD:
+		if (copy_from_user(&temp1, (void __user *)(cmd->value),
+				sizeof(struct stats_htc_af_input))) {
+			rc = -EFAULT;
+			goto proc_general_done;
+		}
+		memcpy(&pmctl->htc_af_info.af_input, &temp1, sizeof(struct stats_htc_af_input));
+		break;
 	default:
 		if (cmd->length != vfe32_cmd[cmd->id].length)
 			return -EINVAL;

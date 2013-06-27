@@ -305,6 +305,7 @@ static int msm_mctl_cmd(struct msm_cam_media_controller *p_mctl,
 		}
 		cdata.is_af_supported = 0;
 		cdata.is_ois_supported = 0;
+		cdata.is_cal_supported = 0; 
 		rc = 0;
 
 		if (p_mctl->actctrl->a_config) {
@@ -316,6 +317,8 @@ static int msm_mctl_cmd(struct msm_cam_media_controller *p_mctl,
 
 			cdata.is_af_supported = 1;
 			cdata.is_ois_supported = p_mctl->actctrl->is_ois_supported;
+			cdata.is_cal_supported = p_mctl->actctrl->is_cal_supported; 
+
 			cdata.cfg.cam_name =
 				(enum af_camera_name)sdata->
 				actuator_info->cam_name;
@@ -349,6 +352,8 @@ static int msm_mctl_cmd(struct msm_cam_media_controller *p_mctl,
 			}
 			act_data.is_af_supported = 0;
 			act_data.is_ois_supported = 0;
+			act_data.is_cal_supported = 0; 
+
 			rc = copy_to_user((void *)argp,
 					 &act_data,
 					 sizeof(struct msm_actuator_cfg_data));
@@ -606,11 +611,6 @@ static int msm_mctl_open(struct msm_cam_media_controller *p_mctl,
 		
 		
 
-		
-		if (p_mctl->sdata->camera_on_check_vcm)
-			p_mctl->sdata->camera_on_check_vcm();
-		
-
 		csid_core = camdev->csid_core;
 		rc = msm_mctl_register_subdevs(p_mctl, csid_core);
 		if (rc < 0) {
@@ -696,6 +696,11 @@ static int msm_mctl_open(struct msm_cam_media_controller *p_mctl,
 		if (rc)
 			pr_info("%s msm_camio_probe_on rc(%d)\n", __func__, rc);
 
+		
+		if(p_mctl->actctrl->actrl_vcm_on_mut)
+			mutex_lock(p_mctl->actctrl->actrl_vcm_on_mut);
+		
+
 		if (p_mctl->sdata->use_rawchip) {
 #ifdef CONFIG_RAWCHIP
 			rc = rawchip_open_init();
@@ -743,6 +748,11 @@ static int msm_mctl_open(struct msm_cam_media_controller *p_mctl,
 			pr_err("%s: act power failed:%d\n", __func__, rc);
 			goto act_power_up_failed;
 		}
+
+		
+		if(p_mctl->actctrl->actrl_vcm_on_mut)
+			mutex_unlock(p_mctl->actctrl->actrl_vcm_on_mut);
+		
 
 		if (camdev->is_ispif) {
 			pm_qos_add_request(&p_mctl->pm_qos_req_list,
@@ -801,6 +811,12 @@ register_sdev_failed:
 	wake_unlock(&p_mctl->wake_lock_suspend);
 
 	mutex_unlock(&p_mctl->lock);
+
+	
+	if(p_mctl->actctrl->actrl_vcm_on_mut)
+		mutex_unlock(p_mctl->actctrl->actrl_vcm_on_mut);
+	
+
 	return rc;
 }
 
@@ -849,6 +865,14 @@ static int msm_mctl_release(struct msm_cam_media_controller *p_mctl)
 			VIDIOC_MSM_CSIPHY_RELEASE, NULL);
 	}
 
+	
+	if(p_mctl->actctrl->actrl_vcm_on_mut)
+		mutex_lock(p_mctl->actctrl->actrl_vcm_on_mut);
+
+	if(p_mctl->actctrl->actrl_vcm_wa_camera_on)
+		*p_mctl->actctrl->actrl_vcm_wa_camera_on = STATUS_OFF;
+	
+
 	if (p_mctl->actctrl->a_power_down)
 		p_mctl->actctrl->a_power_down(
 			p_mctl->sdata->actuator_info);
@@ -871,6 +895,12 @@ static int msm_mctl_release(struct msm_cam_media_controller *p_mctl)
 	
 
 	v4l2_subdev_call(p_mctl->sensor_sdev, core, s_power, 0);
+
+	
+	if(p_mctl->actctrl->actrl_vcm_on_mut)
+		mutex_unlock(p_mctl->actctrl->actrl_vcm_on_mut);
+	
+
 	if (camdev->is_ispif) {
 		pm_qos_update_request(&p_mctl->pm_qos_req_list,
 				PM_QOS_DEFAULT_VALUE);
@@ -982,6 +1012,11 @@ int msm_mctl_init(struct msm_cam_v4l2_device *pcam)
 	pmctl->sdata = pcam->sdata;
 
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
+	if (pmctl->client) {
+		pr_info("%s: pmctl->client(%p) not null\n", __func__, (void*)(pmctl->client));
+		ion_client_destroy(pmctl->client);
+		pmctl->client = NULL;
+	}
 	pmctl->client = msm_ion_client_create(-1, "camera");
 	kref_init(&pmctl->refcount);
 #endif

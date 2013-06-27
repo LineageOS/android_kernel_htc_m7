@@ -362,7 +362,21 @@ config TI201_ACT
        bool "Lens actuator ti201"
        depends on MSM_CAMERA
        ---help---
-         ti201 lens actuator driver for SONY IMX175 and IMX091.
+         ti201 lens actuator driver for SONY IMX175, IMX091 and VD6869.
+
+config ACT_OIS_BINDER
+       bool "Act_Ois_Binder"
+       depends on MSM_CAMERA
+       default n
+       ---help---
+         Act_Ois_Binder for OIS function through ti201 lens actuator driver.
+
+config LC898212_ACT
+       bool "Lens actuator lc898212"
+       depends on MSM_CAMERA
+       default n
+       ---help---
+         lc898212 lens actuator driver for VD6869.
 
 config MT9V113
 	bool "Sensor mt9v113 (VGA YUV)"
@@ -427,4 +441,11 @@ config VD6869
 	default n
 	---help---
 	ST 4MP Bayer Sensor
+
+config OV4688
+	bool "Sensor ov4688 (BAYER 4M)"
+	depends on MSM_CAMERA
+	default n
+	---help---
+	ov 4MP Bayer Sensor
 
