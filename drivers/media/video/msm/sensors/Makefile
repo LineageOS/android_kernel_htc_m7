@@ -11,8 +11,10 @@ obj-$(CONFIG_MACH_ELITE) += imx175_2lane_v4l2.o
 obj-$(CONFIG_MACH_JET) += imx175_2lane_v4l2.o
 obj-$(CONFIG_IMX135) += imx135_v4l2.o
 ifdef CONFIG_CAMERA_IMAGE_NONE_BOARD
+obj-$(CONFIG_OV4688) += ov4688_non_v4l2.o
 obj-$(CONFIG_VD6869) += vd6869_non_v4l2.o
 else
+obj-$(CONFIG_OV4688) += ov4688_v4l2.o
 obj-$(CONFIG_VD6869) += vd6869_v4l2.o
 endif
 obj-$(CONFIG_OV8838) += ov8838_v4l2.o

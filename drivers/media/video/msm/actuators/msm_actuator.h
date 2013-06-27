@@ -69,6 +69,7 @@ struct msm_actuator_func_tbl {
 	int32_t (*actuator_update_ois_tbl) (struct msm_actuator_ctrl_t *, struct sensor_actuator_info_t *);
 	int32_t (*actuator_set_af_value) (struct msm_actuator_ctrl_t *, af_value_t);
 	int32_t (*actuator_set_ois_calibration) (struct msm_actuator_ctrl_t *, struct msm_actuator_get_ois_cal_info_t *);
+    int32_t (*actuator_do_cal)(struct msm_actuator_ctrl_t *, struct msm_actuator_get_vcm_cal_info_t *); 
 
 };
 
