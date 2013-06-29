@@ -789,9 +789,9 @@ int m7_mdp_gamma(void)
 static struct msm_panel_common_pdata mdp_pdata = {
 	.gpio = MDP_VSYNC_GPIO,
 	.mdp_max_clk = 266667000,
-	.mdp_max_bw = 3080000000,
+	.mdp_max_bw = 4290000000u,
 	.mdp_bw_ab_factor = 115,
-	.mdp_bw_ib_factor = 150,
+	.mdp_bw_ib_factor = 200,
 #ifdef CONFIG_MSM_BUS_SCALING
 	.mdp_bus_scale_table = &mdp_bus_scale_pdata,
 #endif
