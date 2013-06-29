@@ -509,12 +509,12 @@ static void msm_ext_spk_power_amp_on(u32 spk)
 			(msm_hs_pamp & HS_AMP_NEG)) {
 			
 			pr_info("hs amp on++");
-			if (query_tpa6185()) {
+			if(query_tpa6185()) {
 				gpio_direction_output(PM8921_GPIO_PM_TO_SYS(10), 1);
 				set_handset_amp(1);
 			}
 
-			if (query_rt5501())
+			if(query_rt5501())
 				set_rt5501_amp(1);
 			pr_info("hs amp on--");
 			pr_debug("%s: slepping 4 ms after turning on external "
@@ -596,12 +596,12 @@ static void msm_ext_spk_power_amp_off(u32 spk)
 
 		
 		pr_info("hs amp off ++");
-		if (query_tpa6185()) {
+		if(query_tpa6185()) {
 			set_handset_amp(0);
 			gpio_direction_output(PM8921_GPIO_PM_TO_SYS(10), 0);
 		}
 
-		if (query_rt5501())
+		if(query_rt5501())
 			set_rt5501_amp(0);
 		pr_info("hs amp off --");
 
@@ -655,6 +655,41 @@ static void msm_ext_spk_power_amp_off(u32 spk)
 	}
 }
 
+static int msm_get_hac(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	pr_info("%s: msm_hac_control = %d", __func__, msm_hac_control);
+	ucontrol->value.integer.value[0] = msm_hac_control;
+	return 0;
+}
+static int msm_set_hac(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	int ret = 0;
+	if (msm_hac_control == ucontrol->value.integer.value[0])
+		return 0;
+
+	msm_hac_control = ucontrol->value.integer.value[0];
+	pr_info("%s()  %d\n", __func__, msm_hac_control);
+	ret = gpio_request(HAC_PAMP_GPIO, "AUDIO_HAC_AMP");
+	if (ret) {
+		pr_err("%s: Error requesting GPIO %d\n", __func__,
+			HAC_PAMP_GPIO);
+			return ret;
+		}
+		else {
+			if (msm_hac_control) {
+				pr_info("%s: enable hac amp gpio %d\n", __func__, HAC_PAMP_GPIO);
+				gpio_direction_output(HAC_PAMP_GPIO, 1);
+			} else {
+				pr_info("%s: disable hac amp gpio %d\n", __func__, HAC_PAMP_GPIO);
+				gpio_direction_output(HAC_PAMP_GPIO, 0);
+			}
+			gpio_free(HAC_PAMP_GPIO);
+		}
+	return 1;
+}
+
 static void msm_ext_control(struct snd_soc_codec *codec)
 {
 	struct snd_soc_dapm_context *dapm = &codec->dapm;
@@ -690,7 +725,6 @@ static int msm_get_spk(struct snd_kcontrol *kcontrol,
 	ucontrol->value.integer.value[0] = msm_spk_control;
 	return 0;
 }
-
 static int msm_set_spk(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol)
 {
@@ -704,7 +738,6 @@ static int msm_set_spk(struct snd_kcontrol *kcontrol,
 	msm_ext_control(codec);
 	return 1;
 }
-
 static int msm_spkramp_event(struct snd_soc_dapm_widget *w,
 	struct snd_kcontrol *k, int event)
 {
@@ -911,7 +944,6 @@ static const struct snd_soc_dapm_route apq8064_common_audio_map[] = {
 
 	{"HEADPHONE", NULL, "LDO_H"},
 
-	
 	{"Ext Spk Bottom Pos", NULL, "LINEOUT1"},
 	{"Ext Spk Bottom Neg", NULL, "LINEOUT3"},
 
@@ -919,41 +951,32 @@ static const struct snd_soc_dapm_route apq8064_common_audio_map[] = {
 	{"Ext Spk Top Neg", NULL, "LINEOUT4"},
 	{"Ext Spk Top", NULL, "LINEOUT5"},
 
-
-	
 	{"Ext Hs Pos", NULL, "HS AMP EN"},
 	{"Ext Hs Neg", NULL, "HS AMP EN"},
 	{"HS AMP EN", "Switch", "Lineout Mixer"},
 
-	
 	{"Ext Rcv Pos", NULL, "RCV AMP EN"},
 	{"Ext Rcv Neg", NULL, "RCV AMP EN"},
 	{"RCV AMP EN", "Switch", "Lineout Mixer"},
 
 	{"Lineout Mixer", NULL, "LINEOUT3"},
 	{"Lineout Mixer", NULL, "LINEOUT1"},
-	
+
 	{"AMIC1", NULL, "MIC BIAS1 External"},
 	{"MIC BIAS1 External", NULL, "Analog mic7"},
 
-
-	{"AMIC2", NULL, "MIC BIAS2 External"},
-	{"MIC BIAS2 External", NULL, "Headset Mic"},
-
+ 	{"AMIC2", NULL, "MIC BIAS2 External"},
+ 	{"MIC BIAS2 External", NULL, "Headset Mic"},
 
 	{"AMIC3", NULL, "MIC BIAS3 External"},
 	{"MIC BIAS3 External", NULL, "ANCRight Headset Mic"},
 
-	{"AMIC4", NULL, "MIC BIAS1 Internal2"},
-	{"MIC BIAS1 Internal2", NULL, "ANCLeft Headset Mic"},
-
-
+ 	{"AMIC4", NULL, "MIC BIAS1 Internal2"},
+ 	{"MIC BIAS1 Internal2", NULL, "ANCLeft Headset Mic"},
 
 };
 
 static const struct snd_soc_dapm_route apq8064_mtp_audio_map[] = {
-
-	
 
 	{"DMIC1", NULL, "MIC BIAS1 External"},
 	{"MIC BIAS1 External", NULL, "Digital Mic1"},
@@ -1130,7 +1153,8 @@ static const struct snd_kcontrol_new tabla_msm_controls[] = {
 			msm_incall_rec_mode_get, msm_incall_rec_mode_put),
 	SOC_ENUM_EXT("SLIM_3_RX Channels", msm_enum[1],
 		msm_slim_3_rx_ch_get, msm_slim_3_rx_ch_put),
-
+	SOC_ENUM_EXT("HAC AMP EN", msm_enum[0], msm_get_hac,
+		msm_set_hac),
 
 };
 
@@ -1790,7 +1814,7 @@ static int msm_auxpcm_startup(struct snd_pcm_substream *substream)
 
 	aux_pcm_open++;
 
-	if (aux_pcm_open > 1) {
+	if(aux_pcm_open > 1) {
 		mutex_unlock(&aux_pcm_mutex);
 		return 0;
 	}
@@ -1826,7 +1850,7 @@ static void msm_auxpcm_shutdown(struct snd_pcm_substream *substream)
 	mutex_lock(&aux_pcm_mutex);
 	aux_pcm_open--;
 
-	if (aux_pcm_open < 1) {
+	if(aux_pcm_open < 1) {
 		msm_aux_pcm_free_gpios();
 	}
 
@@ -1954,7 +1978,6 @@ static struct snd_soc_dai_link msm_dai[] = {
 		.ignore_pmdown_time = 1, 
 		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA3,
 	},
-	
 	{
 		.name = "SLIMBUS_0 Hostless",
 		.stream_name = "SLIMBUS_0 Hostless",
@@ -2042,7 +2065,6 @@ static struct snd_soc_dai_link msm_dai[] = {
 		.be_hw_params_fixup = msm_slim_0_tx_be_hw_params_fixup,
 		.ops = &msm_be_ops,
 	},
-	
 	{
 		.name = LPASS_BE_INT_BT_SCO_RX,
 		.stream_name = "Internal BT-SCO Playback",
@@ -2089,7 +2111,6 @@ static struct snd_soc_dai_link msm_dai[] = {
 		.be_id = MSM_BACKEND_DAI_INT_FM_TX,
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
 	},
-	
 	{
 		.name = LPASS_BE_HDMI,
 		.stream_name = "HDMI Playback",
@@ -2137,7 +2158,6 @@ static struct snd_soc_dai_link msm_dai[] = {
 		.be_id = MSM_BACKEND_DAI_MI2S_TX,
 		.ops = &msm8960_mi2s_be_ops,
 	},
-	
 	{
 		.name = LPASS_BE_AFE_PCM_RX,
 		.stream_name = "AFE Playback",
@@ -2161,7 +2181,6 @@ static struct snd_soc_dai_link msm_dai[] = {
 		.be_id = MSM_BACKEND_DAI_AFE_PCM_TX,
 		.be_hw_params_fixup = msm_proxy_be_hw_params_fixup,
 	},
-	
 	{
 		.name = LPASS_BE_AUXPCM_RX,
 		.stream_name = "AUX PCM Playback",
@@ -2239,7 +2258,6 @@ static struct snd_soc_dai_link msm_dai[] = {
 		.be_hw_params_fixup =  msm_slim_1_tx_be_hw_params_fixup,
 		.ops = &msm_slimbus_1_be_ops,
 	},
-	
 	{
 		.name = "SLIMBUS_2 Hostless",
 		.stream_name = "SLIMBUS_2 Hostless",
@@ -2251,8 +2269,6 @@ static struct snd_soc_dai_link msm_dai[] = {
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
 		.ops = &msm_be_ops,
 	},
-
-	
 	{
 		.name = LPASS_BE_SLIMBUS_4_RX,
 		.stream_name = "Slimbus4 Playback",
@@ -2266,7 +2282,6 @@ static struct snd_soc_dai_link msm_dai[] = {
 		.ops = &msm_slimbus_4_be_ops,
 		.ignore_pmdown_time = 1, 
 	},
-	
 	{
 		.name = LPASS_BE_SLIMBUS_4_TX,
 		.stream_name = "Slimbus4 Capture",
@@ -2428,12 +2443,10 @@ static struct snd_soc_dai_link msm_dai[] = {
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST, SND_SOC_DPCM_TRIGGER_POST},
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
 		.ignore_suspend = 1,
-		.ignore_pmdown_time = 1, 
+		.ignore_pmdown_time = 1,
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
 	},
-	
-
 };
 
 struct snd_soc_card snd_soc_card_msm = {
