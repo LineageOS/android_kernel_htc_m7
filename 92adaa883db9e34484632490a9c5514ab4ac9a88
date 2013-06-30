@@ -16,6 +16,24 @@
       "revId": "92adaa883db9e34484632490a9c5514ab4ac9a88",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "dac4157f_b3a3784f",
+        "filename": "sound/soc/msm/Makefile",
+        "patchSetId": 3
+      },
+      "lineNbr": 66,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2013-06-30T00:05:25Z",
+      "side": 1,
+      "message": "I\u0027m assuming it\u0027s actually different in HTC\u0027s repos, but they dummied it out when they released it to the public.",
+      "parentUuid": "dac4157f_b3393844",
+      "revId": "92adaa883db9e34484632490a9c5514ab4ac9a88",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
     }
   ]
 }
