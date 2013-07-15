@@ -791,6 +791,10 @@ int m7_mdp_gamma(void)
 
 static struct msm_panel_common_pdata mdp_pdata = {
 	.gpio = MDP_VSYNC_GPIO,
+	.mdp_max_clk = 266667000,
+	.mdp_max_bw = 2000000000,
+	.mdp_bw_ab_factor = 115,
+	.mdp_bw_ib_factor = 125,
 #ifdef CONFIG_MSM_BUS_SCALING
 	.mdp_bus_scale_table = &mdp_bus_scale_pdata,
 #endif
@@ -801,10 +805,7 @@ static struct msm_panel_common_pdata mdp_pdata = {
 	.mem_hid = MEMTYPE_EBI1,
 #endif
 	.cont_splash_enabled = 0x00,
-        //	.mdp_gamma = m7_mdp_gamma,
 	.mdp_iommu_split_domain = 1,
-	.mdp_max_clk = 200000000,
-        .mdp_max_bw = 2000000000,
 };
 
 static char wfd_check_mdp_iommu_split_domain(void)
