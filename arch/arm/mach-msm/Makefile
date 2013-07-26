@@ -467,3 +467,5 @@ obj-y += htc_cpu_usage_stats.o
 obj-y += htc_lpm.o
 
 obj-$(CONFIG_CPU_FREQ_MSM) += cpufreq.o
+
+obj-$(CONFIG_HAS_MACH_MEMUTILS) += memutils/
