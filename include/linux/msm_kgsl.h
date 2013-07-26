@@ -15,7 +15,6 @@
 #define KGSL_CONTEXT_USER_GENERATED_TS	0x00000080
 #define KGSL_CONTEXT_NO_FAULT_TOLERANCE 0x00000200
 
-
 #define KGSL_CONTEXT_INVALID 0xffffffff
 
 /* Memory allocayion flags */
