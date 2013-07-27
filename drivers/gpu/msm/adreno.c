@@ -2701,7 +2701,7 @@ static int adreno_ringbuffer_drain(struct kgsl_device *device,
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 	struct adreno_ringbuffer *rb = &adreno_dev->ringbuffer;
 	unsigned long wait;
-	unsigned long timeout = jiffies + msecs_to_jiffies(ADRENO_IDLE_TIMEOUT);
+	unsigned long timeout = jiffies + ADRENO_IDLE_TIMEOUT;
 
 	/*
 	 * The first time into the loop, wait for 100 msecs and kick wptr again
