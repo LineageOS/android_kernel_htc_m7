@@ -121,6 +121,7 @@ EXPORT_SYMBOL(hdmi_common_supported_video_mode_lut);
 
 struct msm_hdmi_mode_timing_info
 	hdmi_mhl_supported_video_mode_lut[HDMI_VFRMT_MAX] = {
+	VFRMT_NOT_SUPPORTED(HDMI_VFRMT_UNKNOWN),
 	HDMI_VFRMT_640x480p60_4_3_TIMING,
 	VFRMT_NOT_SUPPORTED(HDMI_VFRMT_720x480p60_4_3),
 	VFRMT_NOT_SUPPORTED(HDMI_VFRMT_720x480p60_16_9),
@@ -1862,7 +1863,7 @@ bool hdmi_common_get_video_format_from_drv_data(struct msm_fb_data_type *mfd)
 	bool changed = TRUE;
 
 	if (var->reserved[3]) {
-		format = var->reserved[3]-1;
+		format = var->reserved[3] >> 16;
 		DEV_DBG("reserved format is %d\n", format);
 	} else {
 		DEV_DBG("detecting resolution from %dx%d use var->reserved[3]"
