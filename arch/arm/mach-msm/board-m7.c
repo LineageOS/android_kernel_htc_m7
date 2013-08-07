@@ -5278,7 +5278,11 @@ static void __init m7_common_init(void)
 	htc_BCM4335_wl_reg_init(WL_REG_ON);
 	bt_export_bd_address();
 	msm_uart_dm6_pdata.wakeup_irq = PM8921_GPIO_IRQ(PM8921_IRQ_BASE, BT_HOST_WAKE);
+#ifdef CONFIG_MSM_SERIAL_HS_BRCM
+	msm_device_uart_dm6.name = "msm_serial_hs_brcm";
+#else
 	msm_device_uart_dm6.name = "msm_serial_hs";
+#endif
 	msm_device_uart_dm6.dev.platform_data = &msm_uart_dm6_pdata;
 #endif
 
