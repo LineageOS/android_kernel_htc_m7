@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "fae47921_1be48739",
+        "filename": "arch/arm/configs/cyanogenmod_m7_defconfig",
+        "patchSetId": 3
+      },
+      "lineNbr": 1773,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2013-08-07T13:52:49Z",
+      "side": 1,
+      "message": "derp, this should be set also.",
+      "revId": "fc01b7ccb070312a0398c4328f65de706afd5916",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
