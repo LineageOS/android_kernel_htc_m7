@@ -855,13 +855,14 @@ static struct platform_device mdm_8064_device = {
 
 #ifdef CONFIG_BT
 static struct msm_serial_hs_platform_data msm_uart_dm6_pdata = {
+#ifndef CONFIG_SERIAL_MSM_HS_BRCM
 	.config_gpio		= 4,
 	.uart_tx_gpio		= BT_UART_TX,
 	.uart_rx_gpio		= BT_UART_RX,
 	.uart_cts_gpio		= BT_UART_CTSz,
 	.uart_rfr_gpio		= BT_UART_RTSz,
-
-#ifdef CONFIG_MSM_SERIAL_HS_BRCM
+#endif
+#ifdef CONFIG_SERIAL_MSM_HS_BRCM
 	.inject_rx_on_wakeup = 0,
 
 	.bt_wakeup_pin = PM8921_GPIO_PM_TO_SYS(BT_WAKE),
@@ -5278,7 +5279,11 @@ static void __init m7_common_init(void)
 	htc_BCM4335_wl_reg_init(WL_REG_ON);
 	bt_export_bd_address();
 	msm_uart_dm6_pdata.wakeup_irq = PM8921_GPIO_IRQ(PM8921_IRQ_BASE, BT_HOST_WAKE);
+#ifdef CONFIG_SERIAL_MSM_HS_BRCM
+	msm_device_uart_dm6.name = "msm_serial_hs_brcm";
+#else
 	msm_device_uart_dm6.name = "msm_serial_hs";
+#endif
 	msm_device_uart_dm6.dev.platform_data = &msm_uart_dm6_pdata;
 #endif
 
