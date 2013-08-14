@@ -1,534 +1,1124 @@
-/* driver/i2c/chip/tfa9887.c
- *
- * NXP tfa9887 Speaker Amp
- *
- * Copyright (C) 2012 HTC Corporation
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- */
-
+#include <linux/kernel.h>
+#include <linux/init.h>
+#include <linux/err.h>
+#include <linux/module.h>
 #include <linux/interrupt.h>
 #include <linux/i2c.h>
-#include <linux/slab.h>
-#include <linux/irq.h>
+#include <linux/regmap.h>
+#include <linux/tfa9887.h>
+#include <sound/initval.h>
+#include <linux/sysfs.h>
 #include <linux/miscdevice.h>
-#include <asm/uaccess.h>
 #include <linux/delay.h>
-#include <linux/input.h>
-#include <linux/workqueue.h>
-#include <linux/freezer.h>
-#include <mach/tfa9887.h>
-#include <linux/mutex.h>
-#include <linux/debugfs.h>
-#include <linux/gpio.h>
-#include <linux/module.h>
-#include <linux/mfd/pm8xxx/pm8921.h>
 
-#undef pr_info
-#undef pr_err
-#define pr_info(fmt, ...) pr_aud_info(fmt, ##__VA_ARGS__)
-#define pr_err(fmt, ...) pr_aud_err(fmt, ##__VA_ARGS__)
+//#define I2C_DEBUGGING
 
-#define TPA9887_IOCTL_MAGIC 'a'
-#define TPA9887_WRITE_CONFIG	_IOW(TPA9887_IOCTL_MAGIC, 0x01, unsigned int)
-#define TPA9887_READ_CONFIG	_IOW(TPA9887_IOCTL_MAGIC, 0x02, unsigned int)
-#define TPA9887_ENABLE_DSP	_IOW(TPA9887_IOCTL_MAGIC, 0x03, unsigned int)
-#define TPA9887_WRITE_L_CONFIG	_IOW(TPA9887_IOCTL_MAGIC, 0x04, unsigned int)
-#define TPA9887_READ_L_CONFIG	_IOW(TPA9887_IOCTL_MAGIC, 0x05, unsigned int)
-#define TPA9887_KERNEL_LOCK    _IOW(TPA9887_IOCTL_MAGIC, 0x06, unsigned int)
-#define DEBUG (0)
+#define TAG "[TFA9887]"
+#define TFA_LOGI(fmt, ...) printk(KERN_INFO "%s: %s: " fmt, TAG, __func__, ##__VA_ARGS__)
+#define TFA_LOGW(fmt, ...) printk(KERN_WARNING "%s: %s: " fmt, TAG, __func__, ##__VA_ARGS__)
+#define TFA_LOGE(fmt, ...) printk(KERN_ERR "%s: %s: " fmt, TAG, __func__, ##__VA_ARGS__)
 
-static struct i2c_client *this_client;
-static struct tfa9887_platform_data *pdata;
-struct mutex spk_amp_lock;
-static int tfa9887_opened;
-static int last_spkamp_state;
-static int dsp_enabled;
-static int tfa9887_i2c_write(char *txData, int length);
-static int tfa9887_i2c_read(char *rxData, int length);
-#ifdef CONFIG_DEBUG_FS
-static struct dentry *debugfs_tpa_dent;
-static struct dentry *debugfs_peek;
-static struct dentry *debugfs_poke;
-static unsigned char read_data;
+#define STATUS_OK 0
 
-static int get_parameters(char *buf, long int *param1, int num_of_par)
+/* Binary configuration data */
+#include "tfa9887_data.c"
+
+/* Objects */
+static struct tfa9887_t *tfa9887R, *tfa9887L;
+
+/* Helper functions */
+
+static void convert_bytes2data(const unsigned char bytes[], int num_bytes, int data[])
 {
-	char *token;
-	int base, cnt;
+	int i; /* index for data */
+	int k; /* index for bytes */
+	int d;
+	int num_data = num_bytes/3;
 
-	token = strsep(&buf, " ");
-
-	for (cnt = 0; cnt < num_of_par; cnt++) {
-		if (token != NULL) {
-			if ((token[1] == 'x') || (token[1] == 'X'))
-				base = 16;
-			else
-				base = 10;
-
-			if (strict_strtoul(token, base, &param1[cnt]) != 0)
-				return -EINVAL;
-
-			token = strsep(&buf, " ");
-			}
-		else
-			return -EINVAL;
+	for (i = 0, k = 0; i < num_data; ++i, k += 3) {
+		d = (bytes[k] << 16) | (bytes[k+1] << 8) | (bytes[k+2]);
+		if (bytes[k] & 0x80) {/* sign bit was set*/
+			d = - ((1<<24)-d);
+		}
+		data[i] = d;
 	}
-	return 0;
 }
 
-static int codec_debug_open(struct inode *inode, struct file *file)
+static int tfa9887_write_reg(struct tfa9887_t *tfa9887,
+		unsigned int subaddress, unsigned int value)
 {
-	file->private_data = inode->i_private;
-	return 0;
-}
-
-static ssize_t codec_debug_read(struct file *file, char __user *ubuf,
-				size_t count, loff_t *ppos)
-{
-	char lbuf[8];
-
-	snprintf(lbuf, sizeof(lbuf), "0x%x\n", read_data);
-	return simple_read_from_buffer(ubuf, count, ppos, lbuf, strlen(lbuf));
-}
-
-static ssize_t codec_debug_write(struct file *filp,
-	const char __user *ubuf, size_t cnt, loff_t *ppos)
-{
-	char *access_str = filp->private_data;
-	char lbuf[32];
-	unsigned char reg_idx[2] = {0x00, 0x00};
-	int rc;
-	long int param[5];
-
-	if (cnt > sizeof(lbuf) - 1)
-		return -EINVAL;
-
-	rc = copy_from_user(lbuf, ubuf, cnt);
-	if (rc)
-		return -EFAULT;
-
-	lbuf[cnt] = '\0';
-
-	if (!strcmp(access_str, "poke")) {
-		
-		rc = get_parameters(lbuf, param, 2);
-		if ((param[0] <= 0xFF) && (param[1] <= 0xFF) &&
-			(rc == 0)) {
-			reg_idx[0] = param[0];
-			reg_idx[1] = param[1];
-			tfa9887_i2c_write(reg_idx, 2);
-		} else
-			rc = -EINVAL;
-	} else if (!strcmp(access_str, "peek")) {
-		
-		rc = get_parameters(lbuf, param, 1);
-		if ((param[0] <= 0xFF) && (rc == 0)) {
-			reg_idx[0] = param[0];
-			tfa9887_i2c_read(&read_data, 1);
-		} else
-			rc = -EINVAL;
-	}
-
-	if (rc == 0)
-		rc = cnt;
-	else
-		pr_err("%s: rc = %d\n", __func__, rc);
-
-	return rc;
-}
-
-static const struct file_operations codec_debug_ops = {
-	.open = codec_debug_open,
-	.write = codec_debug_write,
-	.read = codec_debug_read
-};
+	int error = regmap_write(tfa9887->regmap,subaddress,value);
+#ifdef I2C_DEBUGGING
+	TFA_LOGI("Writing 0x%02x: 0x%04x\n", (0xFF & subaddress),
+			(0xFFFF & value));
 #endif
-#ifdef CONFIG_AMP_TFA9887L
-unsigned char cf_dsp_bypass[3][3] = {
-	{0x04, 0x88, 0x53},
-	{0x09, 0x06, 0x19},
-	{0x09, 0x06, 0x18}
-};
-#else
-unsigned char cf_dsp_bypass[3][3] = {
-	{0x04, 0x88, 0x0B},
-	{0x09, 0x06, 0x19},
-	{0x09, 0x06, 0x18}
-};
+	return error;
+}
+
+static int tfa9887_read_reg(struct tfa9887_t *tfa9887,
+		unsigned int subaddress, unsigned int* pValue)
+{
+	int error = regmap_read(tfa9887->regmap,subaddress,pValue);
+#ifdef I2C_DEBUGGING
+	TFA_LOGI("Read 0x%02x: 0x%04x\n", (0xFF & subaddress),
+			(0xFFFF & (*pValue)));
 #endif
-unsigned char amp_off[1][3] = {
-	{0x09, 0x06, 0x19}
+	return error;
+}
+
+static int dsp_read_mem(struct tfa9887_t *tfa9887, unsigned short start_offset,
+		int num_words, int *pValues)
+{
+	unsigned int cf_ctrl; /* the value to sent to the CF_CONTROLS register */
+	unsigned char bytes[MAX_I2C_LENGTH];
+	int burst_size; /* number of words per burst size */
+	int bytes_per_word = 3;
+	int num_bytes;
+	int* p;
+	int error;
+	/* first set DMEM and AIF, leaving other bits intact */
+	error = tfa9887_read_reg(tfa9887, TFA9887_CF_CONTROLS, &cf_ctrl);
+	if (error != Tfa9887_Error_Ok) {
+		return error;
+	}
+	cf_ctrl &= ~0x000E; /* clear AIF & DMEM */
+	cf_ctrl |= (Tfa9887_DMEM_XMEM << 1); /* set DMEM, leave AIF cleared for autoincrement */
+	error = tfa9887_write_reg(tfa9887, TFA9887_CF_CONTROLS, cf_ctrl);
+	if (error != Tfa9887_Error_Ok) {
+		return error;
+	}
+	error = tfa9887_write_reg(tfa9887, TFA9887_CF_MAD, start_offset);
+	if (error != Tfa9887_Error_Ok) {
+		return error;
+	}
+	num_bytes = num_words*bytes_per_word;
+	p = pValues;
+	for (; num_bytes > 0; ) {
+		burst_size = ROUND_DOWN(MAX_I2C_LENGTH, bytes_per_word);
+		if (num_bytes < burst_size) {
+			burst_size = num_bytes;
+		}
+
+		error = regmap_raw_read(tfa9887->regmap_byte, TFA9887_CF_MEM, bytes,burst_size);
+		if (error != Tfa9887_Error_Ok) {
+			return error;
+		}
+		convert_bytes2data(bytes, burst_size,  p);
+		num_bytes -= burst_size;
+		p += burst_size/bytes_per_word;
+	}
+	return Tfa9887_Error_Ok;
+}
+
+static int load_binary_data(struct tfa9887_t *tfa9887,
+		const unsigned char* bytes, int length)
+{
+	unsigned int size;
+	int index = 0;
+	unsigned char buffer[MAX_I2C_LENGTH];
+	int error;
+	int value = 0;
+	unsigned int status;
+	error = tfa9887_read_reg(tfa9887, TFA9887_STATUS, &status);
+	if (error == Tfa9887_Error_Ok) {
+		if ( (status & 0x0043) != 0x0043) {
+			/* one of Vddd, PLL and clocks not ok */
+			error = -1;
+		}
+	}
+	TFA_LOGI("tfa status %u\n", status);
+	error = dsp_read_mem(tfa9887, 0x2210, 1, &value);
+	TFA_LOGI("tfa version %x\n", value);
+	while (index < length) {
+		/* extract little endian length */
+		size = bytes[index] + bytes[index+1] * 256;
+		index += 2;
+		if ( (index + size) > length) {
+			/* outside the buffer, error in the input data */
+			return -1;
+		}
+		memcpy(buffer, bytes + index, size);
+		error = regmap_raw_write(tfa9887->regmap_byte, buffer[0],
+				&buffer[1], (size -1));
+		TFA_LOGI("%d %d\n", buffer[0], size - 1);
+		if (error != Tfa9887_Error_Ok) {
+			TFA_LOGE("error\n");
+			break;
+		}
+		index += size;
+	}
+	return error;
+}
+
+static int dsp_set_param(struct tfa9887_t *tfa9887, unsigned char module_id,
+		unsigned char param_id, const unsigned char *data, int num_bytes)
+{
+	int error;
+	unsigned int cf_ctrl = 0x0002; /* the value to be sent to the CF_CONTROLS register: cf_req=00000000, cf_int=0, cf_aif=0, cf_dmem=XMEM=01, cf_rst_dsp=0 */
+	unsigned int cf_mad = 0x0001; /* memory address to be accessed (0 : Status, 1 : ID, 2 : parameters) */
+	unsigned int cf_status; /* the contents of the CF_STATUS register */
+	unsigned char mem[3];
+	int rpcStatus = STATUS_OK;
+	int tries = 0;
+
+	error = tfa9887_write_reg(tfa9887, TFA9887_CF_CONTROLS, cf_ctrl);
+	if (error == Tfa9887_Error_Ok) {
+		error = tfa9887_write_reg(tfa9887, TFA9887_CF_MAD, cf_mad);
+	}
+	if (error == Tfa9887_Error_Ok) {
+		unsigned char id[3];
+		id[0] = 0;
+		id[1] = module_id+128;
+		id[2] = param_id;
+		error = regmap_raw_write(tfa9887->regmap_byte, TFA9887_CF_MEM,&id, 3);
+	}
+
+	error = regmap_raw_write(tfa9887->regmap_byte, TFA9887_CF_MEM, data, num_bytes);
+
+	if (error == Tfa9887_Error_Ok) {
+		cf_ctrl |= (1<<8) | (1<<4); /* set the cf_req1 and cf_int bit */
+		error = tfa9887_write_reg(tfa9887, TFA9887_CF_CONTROLS, cf_ctrl);
+
+		do {
+			error = tfa9887_read_reg(tfa9887, TFA9887_CF_STATUS, &cf_status);
+			tries++;
+			usleep_range(100, 200);
+		} while ((error == Tfa9887_Error_Ok) && ((cf_status & 0x0100) == 0) && (tries < 100)); /* don't wait forever, DSP is pretty quick to respond (< 1ms) */
+
+		if (tries >= 100 && tfa9887->powered) {
+			/* something wrong with communication with DSP */
+			TFA_LOGE("Timed out waiting for status, powered: %d\n",
+					tfa9887->powered);
+			error = -1;
+		}
+	}
+	cf_ctrl = 0x0002;
+	cf_mad = 0x0000;
+	if (error == Tfa9887_Error_Ok) {
+		error = tfa9887_write_reg(tfa9887, TFA9887_CF_CONTROLS,cf_ctrl);
+	}
+
+	if (error == Tfa9887_Error_Ok) {
+		error = tfa9887_write_reg(tfa9887, TFA9887_CF_MAD, cf_mad);
+	}
+	if (error == Tfa9887_Error_Ok) {
+		error = regmap_raw_read(tfa9887->regmap_byte, TFA9887_CF_MEM,&mem,3);
+		rpcStatus = (int)((mem[0] << 16) | (mem[1] << 8) | mem[2]);
+	}
+	if (error == Tfa9887_Error_Ok) {
+		if (rpcStatus != STATUS_OK) {
+			error = rpcStatus+100;
+			TFA_LOGE("RPC rpcStatus =%d\n", error);
+		}
+	}
+	return error;
+}
+
+#if 0
+/* Unused */
+static int dsp_get_param(struct tfa9887_t *tfa9887, unsigned char module_id,
+		unsigned char param_id, unsigned char *data, int num_bytes)
+{
+	int error;
+	/* the value to be sent to the CF_CONTROLS register: cf_req=00000000,
+	 * cf_int=0, cf_aif=0, cf_dmem=XMEM=01, cf_rst_dsp=0 */
+	unsigned int cf_ctrl = 0x0002;
+	/* memory address to be access (0:Status, 1:ID, 2:parameters) */
+	unsigned int cf_mad = 0x0001;
+	/* the contents of the CF_STATUS register */
+	unsigned int cf_status;
+	unsigned char mem[3];
+	unsigned char id[3];
+	int tries = 0;
+	/* 1) write the id and data to the DSP XMEM */
+	error = tfa9887_write_reg(tfa9887, TFA9887_CF_CONTROLS,
+				cf_ctrl);
+	error = tfa9887_write_reg(tfa9887, TFA9887_CF_MAD, cf_mad);
+	id[0] = 0;
+	id[1] = module_id + 128;
+	id[2] = param_id;
+	/* only try MEM once, if error, need to resend mad as well */
+	error = regmap_raw_write(tfa9887->regmap_byte, TFA9887_CF_MEM, id, 3);
+	/* 2) wake up the DSP and let it process the data */
+	if (error == 0) {
+		cf_ctrl |= (1 << 8) | (1 << 4); /* set the cf_req1 and cf_int bit */
+		error = tfa9887_write_reg(tfa9887, TFA9887_CF_CONTROLS,
+					cf_ctrl);
+	}
+	/* 3) wait for the ack */
+	if (error == Tfa9887_Error_Ok) {
+		do {
+			error = tfa9887_read_reg(tfa9887, TFA9887_CF_STATUS,
+						&cf_status);
+			msleep(1);
+			tries++;
+		} while (error == 0 && ((cf_status & 0x0100) == 0) && tries < 100);
+		/* don't wait forever, DSP is pretty quick to respond (< 1ms) */
+
+		if (tries >= 100) {
+			/* something wrong with communication with DSP */
+			TFA_LOGE("GetParam failed\n");
+			return -1;
+		}
+	}
+	/* 4) check the RPC return value */
+	cf_ctrl = 0x0002;
+	cf_mad = 0x0000;
+	if (error == Tfa9887_Error_Ok) {
+		error = tfa9887_write_reg(tfa9887, TFA9887_CF_CONTROLS,cf_ctrl);
+	}
+	if (error == Tfa9887_Error_Ok) {
+		error = tfa9887_write_reg(tfa9887, TFA9887_CF_MAD, cf_mad);
+	}
+	if (error == Tfa9887_Error_Ok) {
+		regmap_raw_read(tfa9887->regmap_byte, TFA9887_CF_MEM,&mem,3);
+		error = (mem[0] << 16) | (mem[1] << 8) | mem[2];
+	}
+	if (error != Tfa9887_Error_Ok) {
+		TFA_LOGE("RPC error\n");
+	}
+
+	/* 5) read the resulting data */
+	if (error == 0) {
+		/* memory address to access (0:Status, 1:ID, 2:parameters) */
+		cf_mad = 0x0002;
+		error = tfa9887_write_reg(tfa9887, TFA9887_CF_MAD, cf_mad);
+	}
+	if (error == 0) {
+		error =
+			regmap_raw_read(tfa9887->regmap_byte, TFA9887_CF_MEM, data, num_bytes);
+	}
+	return error;
+}
+#endif
+
+/* Module functions */
+
+static int tfa9887_power(struct tfa9887_t *tfa9887, int on)
+{
+	int error;
+	unsigned int value;
+
+	mutex_lock(&tfa9887->lock);
+	tfa9887->powered = on;
+
+	error = tfa9887_read_reg(tfa9887, TFA9887_SYSTEM_CONTROL, &value);
+	if (error != Tfa9887_Error_Ok) {
+		TFA_LOGE("Unable to read from TFA9887_SYSTEM_CONTROL\n");
+		goto power_err;
+	}
+
+	// get powerdown bit
+	value &= ~(TFA9887_SYSCTRL_POWERDOWN);
+	if (!on) {
+		value |= TFA9887_SYSCTRL_POWERDOWN;
+	}
+
+	error = tfa9887_write_reg(tfa9887, TFA9887_SYSTEM_CONTROL, value);
+	if (error != Tfa9887_Error_Ok) {
+		TFA_LOGE("Unable to write TFA9887_SYSTEM_CONTROL\n");
+	}
+
+	if (!on) {
+		msleep(10);
+	}
+
+power_err:
+	mutex_unlock(&tfa9887->lock);
+	return error;
+}
+
+static int tfa9887_set_volume(struct tfa9887_t *tfa9887, int volume)
+{
+	int error;
+	unsigned int value;
+
+	error = tfa9887_read_reg(tfa9887, TFA9887_AUDIO_CONTROL, &value);
+	if (error != Tfa9887_Error_Ok) {
+		TFA_LOGE("Unable to read from TFA9887_AUDIO_CONTROL\n");
+		goto set_vol_err;
+	}
+
+	value = ((value & 0x00FF) | (unsigned int)(volume << 8));
+	error = tfa9887_write_reg(tfa9887, TFA9887_AUDIO_CONTROL, value);
+
+set_vol_err:
+	return error;
+}
+
+static int tfa9887_mute(struct tfa9887_t *tfa9887, Tfa9887_Mute_t mute)
+{
+	int error;
+	unsigned int aud_value, sys_value;
+
+	error = tfa9887_read_reg(tfa9887, TFA9887_AUDIO_CONTROL, &aud_value);
+	if (error != Tfa9887_Error_Ok) {
+		TFA_LOGE("Unable to read from TFA9887_AUDIO_CONTROL\n");
+		goto mute_err;
+	}
+	error = tfa9887_read_reg(tfa9887, TFA9887_SYSTEM_CONTROL, &sys_value);
+	if (error != Tfa9887_Error_Ok) {
+		TFA_LOGE("Unable to read from TFA9887_SYSTEM_CONTROL\n");
+		goto mute_err;
+	}
+
+	switch (mute) {
+		case Tfa9887_Mute_Off:
+			/* clear CTRL_MUTE, set ENBL_AMP, mute none */
+			aud_value &= ~(TFA9887_AUDIOCTRL_MUTE);
+			sys_value |= TFA9887_SYSCTRL_ENBL_AMP;
+			break;
+		case Tfa9887_Mute_Digital:
+			/* set CTRL_MUTE, set ENBL_AMP, mute ctrl */
+			aud_value |= TFA9887_AUDIOCTRL_MUTE;
+			sys_value |= TFA9887_SYSCTRL_ENBL_AMP;
+			break;
+		case Tfa9887_Mute_Amplifier:
+			/* clear CTRL_MUTE, clear ENBL_AMP, only mute amp */
+			aud_value &= ~(TFA9887_AUDIOCTRL_MUTE);
+			sys_value &= ~(TFA9887_SYSCTRL_ENBL_AMP);
+			break;
+		default:
+			error = -1;
+			TFA_LOGW("Unknown mute type: %d\n", mute);
+			goto mute_err;
+	}
+
+	error = tfa9887_write_reg(tfa9887, TFA9887_AUDIO_CONTROL, aud_value);
+	if (error != Tfa9887_Error_Ok) {
+		TFA_LOGE("Unable to write TFA9887_AUDIO_CONTROL\n");
+		goto mute_err;
+	}
+	error = tfa9887_write_reg(tfa9887, TFA9887_SYSTEM_CONTROL, sys_value);
+	if (error != Tfa9887_Error_Ok) {
+		TFA_LOGE("Unable to write TFA9887_SYSTEM_CONTROL\n");
+		goto mute_err;
+	}
+
+mute_err:
+	return error;
+}
+
+static int tfa9887_enable_dsp(struct tfa9887_t *tfa9887, bool enable)
+{
+	TFA_LOGI("enable: %d\n", enable);
+	mutex_lock(&tfa9887->lock);
+	tfa9887->dsp_enabled = enable;
+	mutex_unlock(&tfa9887->lock);
+	return Tfa9887_Error_Ok;
 };
 
-static int tfa9887_i2c_write(char *txData, int length)
+static int tfa9887_select_input(struct tfa9887_t *tfa9887, int input)
 {
-	int rc;
-	struct i2c_msg msg[] = {
-		{
-			.addr = this_client->addr,
-			.flags = 0,
-			.len = length,
-			.buf = txData,
-		},
-	};
+	int error;
+	unsigned int value;
 
-	rc = i2c_transfer(this_client->adapter, msg, 1);
-	if (rc < 0) {
-		pr_err("%s: transfer error %d\n", __func__, rc);
-		return rc;
+	error = tfa9887_read_reg(tfa9887, TFA9887_I2S_CONTROL, &value);
+	if (error != Tfa9887_Error_Ok) {
+		goto select_amp_err;
 	}
 
-#if DEBUG
-	{
-		int i = 0;
-		for (i = 0; i < length; i++)
-			pr_info("%s: tx[%d] = %2x\n", \
-				__func__, i, txData[i]);
-	}
-#endif
+	// clear 2 bits
+	value &= ~(0x3 << TFA9887_I2SCTRL_INPUT_SEL_SHIFT);
 
-	return 0;
+	switch (input) {
+		case 1:
+			value |= 0x40;
+			break;
+		case 2:
+			value |= 0x80;
+			break;
+		default:
+			TFA_LOGW("Invalid input selected: %d\n",
+					input);
+			error = -1;
+			goto select_amp_err;
+	}
+	error = tfa9887_write_reg(tfa9887, TFA9887_I2S_CONTROL, value);
+
+select_amp_err:
+	return error;
 }
 
-static int tfa9887_i2c_read(char *rxData, int length)
+static int tfa9887_select_channel(struct tfa9887_t *tfa9887, int channels)
 {
-	int rc;
-	struct i2c_msg msgs[] = {
-		{
-		 .addr = this_client->addr,
-		 .flags = I2C_M_RD,
-		 .len = length,
-		 .buf = rxData,
-		},
-	};
+	int error;
+	unsigned int value;
 
-	rc = i2c_transfer(this_client->adapter, msgs, 1);
-	if (rc < 0) {
-		pr_err("%s: transfer error %d\n", __func__, rc);
-		return rc;
+	error = tfa9887_read_reg(tfa9887, TFA9887_I2S_CONTROL, &value);
+	if (error != Tfa9887_Error_Ok) {
+		goto select_channel_err;
 	}
 
-#if DEBUG
-	{
-		int i = 0;
-		for (i = 0; i < length; i++)
-			pr_info("i2c_read %s: rx[%d] = %2x\n", __func__, i, \
-				rxData[i]);
+	// clear the 2 bits first
+	value &= ~(0x3 << TFA9887_I2SCTRL_CHANSEL_SHIFT);
+
+	switch (channels) {
+		case 0:
+			value |= 0x8;
+			break;
+		case 1:
+			value |= 0x10;
+			break;
+		case 2:
+			value |= 0x18;
+			break;
+		default:
+			TFA_LOGW("Too many channels requested: %d\n",
+					channels);
+			error = -1;
+			goto select_channel_err;
 	}
-#endif
+	error = tfa9887_write_reg(tfa9887, TFA9887_I2S_CONTROL, value);
 
-	return 0;
+select_channel_err:
+	return error;
 }
 
-static int tfa9887_open(struct inode *inode, struct file *file)
+static int tfa9887_set_sample_rate(struct tfa9887_t *tfa9887, int sample_rate)
 {
-	int rc = 0;
+	int error;
+	unsigned int value;
 
-	if (tfa9887_opened) {
-		pr_info("%s: busy\n", __func__);
+	error = tfa9887_read_reg(tfa9887, TFA9887_I2S_CONTROL, &value);
+	if (error == Tfa9887_Error_Ok) {
+		// clear the 4 bits first
+		value &= (~(0xF << TFA9887_I2SCTRL_RATE_SHIFT));
+		switch (sample_rate) {
+			case 48000:
+				value |= TFA9887_I2SCTRL_RATE_48000;
+				break;
+			case 44100:
+				value |= TFA9887_I2SCTRL_RATE_44100;
+				break;
+			case 32000:
+				value |= TFA9887_I2SCTRL_RATE_32000;
+				break;
+			case 24000:
+				value |= TFA9887_I2SCTRL_RATE_24000;
+				break;
+			case 22050:
+				value |= TFA9887_I2SCTRL_RATE_22050;
+				break;
+			case 16000:
+				value |= TFA9887_I2SCTRL_RATE_16000;
+				break;
+			case 12000:
+				value |= TFA9887_I2SCTRL_RATE_12000;
+				break;
+			case 11025:
+				value |= TFA9887_I2SCTRL_RATE_11025;
+				break;
+			case 8000:
+				value |= TFA9887_I2SCTRL_RATE_08000;
+				break;
+			default:
+				TFA_LOGE("Unsupported sample rate %d\n", sample_rate);
+				error = -1;
+				return error;
+		}
+		error = tfa9887_write_reg(tfa9887, TFA9887_I2S_CONTROL,
+				value);
 	}
-	tfa9887_opened = 1;
 
-	return rc;
+	return error;
 }
 
-static int tfa9887_release(struct inode *inode, struct file *file)
+static int tfa9887_wait_ready(struct tfa9887_t *tfa9887,
+		unsigned int ready_bits, unsigned int ready_state)
 {
-	tfa9887_opened = 0;
+	int error;
+	unsigned int value;
+	int tries;
+	bool ready;
 
-	return 0;
+	tries = 0;
+	do {
+		error = tfa9887_read_reg(tfa9887, TFA9887_STATUS, &value);
+		ready = (error == Tfa9887_Error_Ok &&
+				(value & ready_bits) == ready_state);
+		TFA_LOGI("Waiting for 0x%04x, current state: 0x%04x\n",
+				ready_state, value);
+		tries++;
+		msleep(10);
+	} while (!ready && tries < 10);
+
+	if (tries >= 10) {
+		TFA_LOGE("Timed out waiting for tfa9887 to become ready\n");
+		error = -1;
+	}
+
+	return error;
 }
 
-void set_tfa9887_spkamp(int en, int dsp_mode)
+static int tfa9887_set_configured(struct tfa9887_t *tfa9887)
 {
-	int i =0;
-        
-        
-        unsigned char mute_reg[1] = {0x06};
-	unsigned char mute_data[3] = {0, 0, 0};
-        unsigned char power_reg[1] = {0x09};
-	unsigned char power_data[3] = {0, 0, 0};
-	unsigned char SPK_CR[3] = {0x8, 0x8, 0};
+	int error;
+	unsigned int value;
 
-	pr_info("%s: en = %d dsp_enabled = %d\n", __func__, en, dsp_enabled);
-	mutex_lock(&spk_amp_lock);
-	if (en && !last_spkamp_state) {
-		last_spkamp_state = 1;
-		
-		if (dsp_enabled == 0) {
-			for (i=0; i <3 ; i++)
-				tfa9887_i2c_write(cf_dsp_bypass[i], 3);
-                
-				tfa9887_i2c_write(SPK_CR,1);
-				tfa9887_i2c_read(SPK_CR+1,2);
-				SPK_CR[1] |= 0x4; 
-				tfa9887_i2c_write(SPK_CR,3);
+	error = tfa9887_read_reg(tfa9887, TFA9887_SYSTEM_CONTROL, &value);
+	if (error != Tfa9887_Error_Ok) {
+		TFA_LOGE("Unable to read from TFA9887_SYSTEM_CONTROL\n");
+		goto set_conf_err;
+	}
+	value |= TFA9887_SYSCTRL_CONFIGURED;
+	tfa9887_write_reg(tfa9887, TFA9887_SYSTEM_CONTROL, value);
+	if (error != Tfa9887_Error_Ok) {
+		TFA_LOGE("Unable to write TFA9887_SYSTEM_CONTROL\n");
+	}
+
+set_conf_err:
+	return error;
+}
+
+static int tfa9887_startup(struct tfa9887_t *tfa9887)
+{
+	int error;
+	unsigned int value;
+
+	error = tfa9887_write_reg(tfa9887, 0x09, 0x0002);
+	if (Tfa9887_Error_Ok == error) {
+		error = tfa9887_read_reg(tfa9887, 0x09, &value);
+	}
+	if (Tfa9887_Error_Ok == error) {
+		/* DSP must be in control of the amplifier to avoid plops */
+		value |= TFA9887_SYSCTRL_SEL_ENBL_AMP;
+		error = tfa9887_write_reg(tfa9887, 0x09, value);
+	}
+
+	/* some other registers must be set for optimal amplifier behaviour */
+	if (Tfa9887_Error_Ok == error) {
+		error = tfa9887_write_reg(tfa9887, 0x40, 0x5A6B);
+	}
+	if (Tfa9887_Error_Ok == error) {
+		error = tfa9887_write_reg(tfa9887, 0x05, 0x13AB);
+	}
+	if (Tfa9887_Error_Ok == error) {
+		error = tfa9887_write_reg(tfa9887, 0x06, 0x001F);
+	}
+	if (Tfa9887_Error_Ok == error) {
+		error = tfa9887_write_reg(tfa9887, TFA9887_SPKR_CALIBRATION,
+				0x0C4E);
+	}
+	if (Tfa9887_Error_Ok == error) {
+		error = tfa9887_write_reg(tfa9887, 0x09, 0x025D);
+	}
+	if (Tfa9887_Error_Ok == error) {
+		error = tfa9887_write_reg(tfa9887, 0x0A, 0x3EC3);
+	}
+	if (Tfa9887_Error_Ok == error) {
+		error = tfa9887_write_reg(tfa9887, 0x41, 0x0308);
+	}
+	if (Tfa9887_Error_Ok == error) {
+		error = tfa9887_write_reg(tfa9887, 0x48, 0x0180);
+	}
+	if (Tfa9887_Error_Ok == error) {
+		error = tfa9887_write_reg(tfa9887, 0x49, 0x0E82);
+	}
+	if (Tfa9887_Error_Ok == error) {
+		error = tfa9887_write_reg(tfa9887, 0x52, 0x0000);
+	}
+	if (Tfa9887_Error_Ok == error) {
+		error = tfa9887_write_reg(tfa9887, 0x40, 0x0000);
+	}
+
+	return error;
+}
+
+/* helper functions to reduce code duplication */
+
+static int tfa9887_do_init(struct tfa9887_t *tfa9887, int sample_rate,
+		bool is_right)
+{
+	int error;
+	char *patch_data, *config_data, *preset_data, *speaker_data, *eq_data;
+	int patch_size, config_size, preset_size, speaker_size, eq_size;
+	int channel;
+	unsigned int pll_lock_bits = (TFA9887_STATUS_CLKS | TFA9887_STATUS_PLLS);
+
+	if (is_right) {
+		channel = 1;
+		patch_data = patch_data_right;
+		patch_size = PATCH_RIGHT_SIZE;
+		config_data = config_playback_right;
+		config_size = CONFIG_PLAYBACK_RIGHT_SIZE;
+		preset_data = preset_playback_right;
+		preset_size = PRESET_PLAYBACK_RIGHT_SIZE;
+		speaker_data = speaker_data_right;
+		speaker_size = SPEAKER_RIGHT_SIZE;
+		eq_data = eq_playback_right;
+		eq_size = EQ_PLAYBACK_RIGHT_SIZE;
+	} else {
+		channel = 0;
+		patch_data = patch_data_left;
+		patch_size = PATCH_LEFT_SIZE;
+		config_data = config_playback_left;
+		config_size = CONFIG_PLAYBACK_LEFT_SIZE;
+		preset_data = preset_playback_left;
+		preset_size = PRESET_PLAYBACK_LEFT_SIZE;
+		speaker_data = speaker_data_left;
+		speaker_size = SPEAKER_LEFT_SIZE;
+		eq_data = eq_playback_left;
+		eq_size = EQ_PLAYBACK_LEFT_SIZE;
+	}
+
+	/* do cold boot init */
+	error = tfa9887_startup(tfa9887);
+	if (error != Tfa9887_Error_Ok) {
+		TFA_LOGE("Unable to initialize\n");
+		goto priv_init_err;
+	}
+	error = tfa9887_set_sample_rate(tfa9887, sample_rate);
+	if (error != Tfa9887_Error_Ok) {
+		TFA_LOGE("Unable to set sample rate\n");
+		goto priv_init_err;
+	}
+	error = tfa9887_select_channel(tfa9887, channel);
+	if (error != Tfa9887_Error_Ok) {
+		TFA_LOGE("Unable to select channel\n");
+		goto priv_init_err;
+	}
+	error = tfa9887_select_input(tfa9887, 2);
+	if (error != Tfa9887_Error_Ok) {
+		TFA_LOGE("Unable to select input\n");
+		goto priv_init_err;
+	}
+	error = tfa9887_set_volume(tfa9887, 0);
+	if (error != Tfa9887_Error_Ok) {
+		TFA_LOGE("Unable to set volume\n");
+		goto priv_init_err;
+	}
+	error = tfa9887_power(tfa9887, true);
+	if (error != Tfa9887_Error_Ok) {
+		TFA_LOGE("Unable to power up\n");
+		goto priv_init_err;
+	}
+
+	/* wait for ready */
+	error = tfa9887_wait_ready(tfa9887, pll_lock_bits, pll_lock_bits);
+	if (error != Tfa9887_Error_Ok) {
+		TFA_LOGE("Failed to lock PLLs\n");
+		goto priv_init_err;
+	}
+
+	/* load firmware */
+	error = load_binary_data(tfa9887, patch_data, patch_size);
+	if (error != Tfa9887_Error_Ok) {
+		TFA_LOGE("Unable to load patch data\n");
+		goto priv_init_err;
+	}
+	error = dsp_set_param(tfa9887, MODULE_SPEAKERBOOST, PARAM_SET_CONFIG,
+			config_data, config_size);
+	if (error != Tfa9887_Error_Ok) {
+		TFA_LOGE("Unable to load config data\n");
+		goto priv_init_err;
+	}
+	error = dsp_set_param(tfa9887, MODULE_SPEAKERBOOST, PARAM_SET_PRESET,
+			preset_data, preset_size);
+	if (error != Tfa9887_Error_Ok) {
+		TFA_LOGE("Unable to load preset data\n");
+		goto priv_init_err;
+	}
+	error = dsp_set_param(tfa9887, MODULE_SPEAKERBOOST, PARAM_SET_LSMODEL,
+			speaker_data, speaker_size);
+	if (error != Tfa9887_Error_Ok) {
+		TFA_LOGE("Unable to load speaker data\n");
+		goto priv_init_err;
+	}
+	error = dsp_set_param(tfa9887, MODULE_BIQUADFILTERBANK, PARAM_SET_EQ,
+			eq_data, eq_size);
+	if (error != Tfa9887_Error_Ok) {
+		TFA_LOGE("Unable to load EQ data\n");
+		goto priv_init_err;
+	}
+	error = tfa9887_set_configured(tfa9887);
+	if (error != Tfa9887_Error_Ok) {
+		TFA_LOGE("Unable to set configured\n");
+		goto priv_init_err;
+	}
+
+	/* wait for ready */
+	error = tfa9887_wait_ready(tfa9887, TFA9887_STATUS_MTPB, 0);
+	if (error != Tfa9887_Error_Ok) {
+		TFA_LOGE("Failed to become ready\n");
+		goto priv_init_err;
+	}
+
+	/* enable DSP */
+	tfa9887_enable_dsp(tfa9887, true);
+
+priv_init_err:
+	return error;
+}
+
+static void tfa9887_enable_spk_amp(struct tfa9887_t *tfa9887, bool enable,
+		bool is_right)
+{
+	int error;
+	unsigned int value;
+	unsigned int dsp_bypass;
+
+	if (is_right) {
+		dsp_bypass = 0x8853;
+	} else {
+		dsp_bypass = 0x880B;
+	}
+
+	mutex_lock(&tfa9887->lock);
+	if (enable && !tfa9887->spkamp_enabled) {
+		/* off->on transition */
+		tfa9887->spkamp_enabled = true;
+		if (tfa9887->dsp_enabled) {
+			error = tfa9887_power(tfa9887, true);
+			error = tfa9887_mute(tfa9887, Tfa9887_Mute_Off);
 		} else {
-			
-			
-			tfa9887_i2c_write(power_reg, 1);
-			tfa9887_i2c_read(power_data + 1, 2);
-			tfa9887_i2c_write(mute_reg, 1);
-			tfa9887_i2c_read(mute_data + 1, 2);
-			mute_data[0] = 0x6;
-			mute_data[2] &= 0xef;  
-			power_data[0] = 0x9;
-			power_data[2] &= 0xfe; 
-			tfa9887_i2c_write(power_data, 3);
-			tfa9887_i2c_write(mute_data, 3);
+			error = tfa9887_write_reg(tfa9887, 0x04, dsp_bypass);
+			error = tfa9887_write_reg(tfa9887, 0x09, 0x0619);
+			error = tfa9887_write_reg(tfa9887, 0x09, 0x0618);
+
+			/* set up speakers */
+			error = tfa9887_read_reg(tfa9887, 0x08, &value);
+			value |= (0x4 << 8);
+			error = tfa9887_write_reg(tfa9887, 0x08, value);
 		}
-	} else if (!en && last_spkamp_state) {
-		last_spkamp_state = 0;
-		if (dsp_enabled == 0) {
-			tfa9887_i2c_write(amp_off[0], 3);
+	} else if (!enable && tfa9887->spkamp_enabled) {
+		/* on->off transition */
+		tfa9887->spkamp_enabled = false;
+		if (tfa9887->dsp_enabled) {
+			error = tfa9887_power(tfa9887, true);
+			error = tfa9887_mute(tfa9887, Tfa9887_Mute_Digital);
 		} else {
-			
-			
-			tfa9887_i2c_write(power_reg, 1);
-			tfa9887_i2c_read(power_data + 1, 2);
-			tfa9887_i2c_write(mute_reg, 1);
-			tfa9887_i2c_read(mute_data + 1, 2);
-			mute_data[0] = 0x6;
-			mute_data[2] |= 0x10; 
-			power_data[0] = 0x9;
-			power_data[2] |= 0x1;  
-			tfa9887_i2c_write(mute_data, 3);
-			tfa9887_i2c_write(power_data, 3);
+			/* power down amp */
+			tfa9887_write_reg(tfa9887, 0x09, 0x0619);
 		}
 	}
-	mutex_unlock(&spk_amp_lock);
+	mutex_unlock(&tfa9887->lock);
 }
 
-static long tfa9887_ioctl(struct file *file, unsigned int cmd,
-	   unsigned long arg)
+/* Public functions */
+static bool tfa9887_initialized = false;
+int Tfa9887_Init(int sample_rate)
 {
-	int rc = 0;
-	unsigned int reg_value[2];
-	unsigned int len = 0;
-	char *addr;
-	void __user *argp = (void __user *)arg;
+	int error;
+	bool left_init = false;
+	bool right_init = false;
 
-	switch (cmd) {
-	case TPA9887_WRITE_CONFIG:
-		pr_debug("%s: TPA9887_WRITE_CONFIG\n", __func__);
-		rc = copy_from_user(reg_value, argp, sizeof(reg_value));
-		if (rc) {
-			pr_err("%s: copy from user failed.\n", __func__);
-			goto err;
+	if (tfa9887R) {
+		error = tfa9887_do_init(tfa9887R, sample_rate, true);
+		if (error != Tfa9887_Error_Ok) {
+			TFA_LOGW("Error %d occurred initializing tfa9887R!",
+					error);
+			right_init = false;
+		} else {
+			right_init = true;
 		}
-
-		len = reg_value[0];
-		addr = (char *)reg_value[1];
-
-		tfa9887_i2c_write(addr+1, len -1);
-
-		break;
-	case TPA9887_READ_CONFIG:
-		pr_debug("%s: TPA9887_READ_CONFIG\n", __func__);
-		rc = copy_from_user(reg_value, argp, sizeof(reg_value));;
-		if (rc) {
-			pr_err("%s: copy from user failed.\n", __func__);
-			goto err;
-		}
-
-		len = reg_value[0];
-		addr = (char *)reg_value[1];
-		tfa9887_i2c_read(addr, len);
-
-		rc = copy_to_user(argp, reg_value, sizeof(reg_value));
-		if (rc) {
-			pr_err("%s: copy to user failed.\n", __func__);
-			goto err;
-		}
-		break;
-#ifdef CONFIG_AMP_TFA9887L
-	case TPA9887_WRITE_L_CONFIG:
-		pr_debug("%s: TPA9887_WRITE_CONFIG_L\n", __func__);
-		rc = copy_from_user(reg_value, argp, sizeof(reg_value));
-		if (rc) {
-			pr_err("%s: copy from user failed.\n", __func__);
-			goto err;
-		}
-
-		len = reg_value[0];
-		addr = (char *)reg_value[1];
-		tfa9887_l_write(addr+1, len -1);
-		break;
-	case TPA9887_READ_L_CONFIG:
-		pr_debug("%s: TPA9887_READ_CONFIG_L\n", __func__);
-		rc = copy_from_user(reg_value, argp, sizeof(reg_value));;
-		if (rc) {
-			pr_err("%s: copy from user failed.\n", __func__);
-			goto err;
-		}
-
-		len = reg_value[0];
-		addr = (char *)reg_value[1];
-		tfa9887_l_read(addr, len);
-
-		rc = copy_to_user(argp, reg_value, sizeof(reg_value));
-		if (rc) {
-			pr_err("%s: copy to user failed.\n", __func__);
-			goto err;
-		}
-		break;
-#endif
-	case TPA9887_ENABLE_DSP:
-		pr_info("%s: TPA9887_ENABLE_DSP\n", __func__);
-		rc = copy_from_user(reg_value, argp, sizeof(reg_value));;
-		if (rc) {
-			pr_err("%s: copy from user failed.\n", __func__);
-			goto err;
-		}
-
-		len = reg_value[0];
-		dsp_enabled = reg_value[1];
-		break;
-	case TPA9887_KERNEL_LOCK:
-		rc = copy_from_user(reg_value, argp, sizeof(reg_value));;
-		if (rc) {
-		   pr_err("%s: copy from user failed.\n", __func__);
-		   goto err;
-		}
-
-		len = reg_value[0];
-		
-		pr_info("TPA9887_KLOCK1 %d\n", reg_value[1]);
-		if (reg_value[1])
-		   mutex_lock(&spk_amp_lock);
-		else
-		   mutex_unlock(&spk_amp_lock);
-		break;
+		TFA_LOGI("Completed TFA9887R initialization");
 	}
+	if (tfa9887L) {
+		error = tfa9887_do_init(tfa9887L, sample_rate, false);
+		if (error != Tfa9887_Error_Ok) {
+			TFA_LOGW("Error %d occurred initializing tfa9887L!",
+					error);
+			left_init = false;
+		} else {
+			left_init = true;
+		}
+		TFA_LOGI("Completed TFA9887L initialization");
+	}
+
+	tfa9887_initialized = right_init && left_init;
+
+	return Tfa9887_Error_Ok;
+}
+EXPORT_SYMBOL(Tfa9887_Init);
+
+void Tfa9887_EnableSpkAmp(bool enable)
+{
+	TFA_LOGI("enable: %d", enable);
+	if (tfa9887R) {
+		tfa9887_enable_spk_amp(tfa9887R, enable, true);
+	}
+	if (tfa9887L) {
+		tfa9887_enable_spk_amp(tfa9887L, enable, false);
+	}
+}
+EXPORT_SYMBOL(Tfa9887_EnableSpkAmp);
+
+/* Kernel module initialization functions */
+
+static ssize_t tfa9887_dsp_state_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	bool left_dsp = false;
+	bool right_dsp = false;
+
+	if (tfa9887R) {
+		mutex_lock(&tfa9887R->lock);
+		right_dsp = tfa9887R->dsp_enabled;
+		mutex_unlock(&tfa9887R->lock);
+	}
+	if (tfa9887L) {
+		mutex_lock(&tfa9887L->lock);
+		left_dsp = tfa9887L->dsp_enabled;
+		mutex_unlock(&tfa9887L->lock);
+	}
+
+	if (left_dsp && right_dsp) {
+		*buf = '1';
+	} else {
+		*buf = '0';
+	}
+
+	return 1;
+}
+
+static ssize_t tfa9887_dsp_state_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	ssize_t ret = count;
+
+	if (!buf || count < 1) {
+		ret = -EINVAL;
+		goto dsp_state_fail;
+	}
+
+	if (buf[0] == '0') {
+		if (tfa9887R) {
+			tfa9887_enable_dsp(tfa9887R, false);
+		}
+		if (tfa9887L) {
+			tfa9887_enable_dsp(tfa9887L, false);
+		}
+	} else if (buf[0] == '1') {
+		if (tfa9887R) {
+			tfa9887_enable_dsp(tfa9887R, true);
+		}
+		if (tfa9887L) {
+			tfa9887_enable_dsp(tfa9887R, true);
+		}
+	} else {
+		ret = -EINVAL;
+		goto dsp_state_fail;
+	}
+
+dsp_state_fail:
+	return ret;
+}
+
+static struct kobject *tfa9887_kobj;
+static struct kobj_attribute tfa9887_dsp_state =
+		__ATTR(dsp_state, 0660, tfa9887_dsp_state_show,
+				tfa9887_dsp_state_store);
+
+static bool tfa9887_readable_register(struct device *dev, unsigned int reg)
+{
+	return true;
+}
+
+static bool tfa9887_volatile_register(struct device *dev, unsigned int reg)
+{
+	return true;
+}
+
+static const struct regmap_config tfa9887_regmap = {
+	.reg_bits = 8,
+	.val_bits = 16,
+	.volatile_reg = tfa9887_volatile_register,
+	.readable_reg = tfa9887_readable_register,
+	.cache_type = REGCACHE_NONE,
+};
+
+static const struct regmap_config tfa9887_regmap_byte = {
+	.reg_bits = 8,
+	.val_bits = 8,
+	.volatile_reg = tfa9887_volatile_register,
+	.readable_reg = tfa9887_readable_register,
+	.cache_type = REGCACHE_NONE,
+};
+
+static __devinit int tfa9887R_i2c_probe(struct i2c_client *i2c,
+		const struct i2c_device_id *id)
+{
+	unsigned int val;
+	int ret;
+
+	TFA_LOGI("E\n");
+	tfa9887R = devm_kzalloc(&i2c->dev, sizeof(struct tfa9887_t),
+			GFP_KERNEL);
+
+	if (tfa9887R == NULL)
+		return -ENOMEM;
+	tfa9887R->regmap = regmap_init_i2c(i2c, &tfa9887_regmap);
+	tfa9887R->regmap_byte = regmap_init_i2c(i2c, &tfa9887_regmap_byte);
+	if (IS_ERR(tfa9887R->regmap)) {
+		ret = PTR_ERR(tfa9887R->regmap);
+		dev_err(&i2c->dev, "Failed to allocate register map: %d\n",
+				ret);
+		return ret;
+	}
+
+	i2c_set_clientdata(i2c, tfa9887R);
+	mutex_init(&tfa9887R->lock);
+	tfa9887R->irq = i2c->irq;
+	ret = regmap_read(tfa9887R->regmap, TFA9887_REVISIONNUMBER, &val);
+	if (ret != 0) {
+		dev_err(&i2c->dev, "Failed to read chip revision: %d\n", ret);
+		goto err;
+	}
+	dev_info(&i2c->dev, "TFA9887 revision %d\n",val);
+	tfa9887_kobj = kobject_create_and_add("tfa9887", kernel_kobj);
+	ret = sysfs_create_file(tfa9887_kobj, (const struct attribute *) &tfa9887_dsp_state);
+
+	if (tfa9887R) {
+		mutex_lock(&tfa9887R->lock);
+		tfa9887R->initialized = true;
+		tfa9887R->dsp_enabled = false;
+		tfa9887R->spkamp_enabled = false;
+		tfa9887R->powered = false;
+		mutex_unlock(&tfa9887R->lock);
+	}
+	return 0;
 err:
-	return rc;
-}
-
-static struct file_operations tfa9887_fops = {
-	.owner = THIS_MODULE,
-	.open = tfa9887_open,
-	.release = tfa9887_release,
-	.unlocked_ioctl = tfa9887_ioctl,
-};
-
-static struct miscdevice tfa9887_device = {
-	.minor = MISC_DYNAMIC_MINOR,
-	.name = "tfa9887",
-	.fops = &tfa9887_fops,
-};
-
-int tfa9887_probe(struct i2c_client *client, const struct i2c_device_id *id)
-{
-	int ret = 0;
-
-	pdata = client->dev.platform_data;
-
-	if (pdata == NULL) {
-		pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
-		if (pdata == NULL) {
-			ret = -ENOMEM;
-			pr_err("%s: platform data is NULL\n", __func__);
-			goto err_alloc_data_failed;
-		}
-	}
-
-	this_client = client;
-
-	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
-		pr_err("%s: i2c check functionality error\n", __func__);
-		ret = -ENODEV;
-		goto err_free_gpio_all;
-	}
-
-	ret = misc_register(&tfa9887_device);
-	if (ret) {
-		pr_err("%s: tfa9887_device register failed\n", __func__);
-		goto err_free_gpio_all;
-	}
-#ifdef CONFIG_DEBUG_FS
-	debugfs_tpa_dent = debugfs_create_dir("tfa9887", 0);
-	if (!IS_ERR(debugfs_tpa_dent)) {
-		debugfs_peek = debugfs_create_file("peek",
-		S_IFREG | S_IRUGO, debugfs_tpa_dent,
-		(void *) "peek", &codec_debug_ops);
-
-		debugfs_poke = debugfs_create_file("poke",
-		S_IFREG | S_IRUGO, debugfs_tpa_dent,
-		(void *) "poke", &codec_debug_ops);
-
-	}
-#endif
-	return 0;
-
-err_free_gpio_all:
-	return ret;
-err_alloc_data_failed:
+	regmap_exit(tfa9887R->regmap);
 	return ret;
 }
 
-static int tfa9887_remove(struct i2c_client *client)
+static __devexit int tfa9887R_i2c_remove(struct i2c_client *client)
 {
-	struct tfa9887_platform_data *p9887data = i2c_get_clientdata(client);
-	kfree(p9887data);
-
+	struct tfa9887_t *tfa9887R = i2c_get_clientdata(client);
+	regmap_exit(tfa9887R->regmap);
+	regmap_exit(tfa9887R->regmap_byte);
+	sysfs_remove_file(tfa9887_kobj, (const struct attribute *) &tfa9887_dsp_state);
+	kobject_del(tfa9887_kobj);
 	return 0;
 }
 
-static int tfa9887_suspend(struct i2c_client *client, pm_message_t mesg)
+static void tfa9887R_i2c_shutdown(struct i2c_client *i2c)
 {
-	return 0;
+	if (tfa9887R) {
+		mutex_lock(&tfa9887R->lock);
+		if (i2c->irq)
+			disable_irq(i2c->irq);
+		tfa9887R->initialized = false;
+		mutex_unlock(&tfa9887R->lock);
+	}
 }
 
-static int tfa9887_resume(struct i2c_client *client)
-{
-	return 0;
-}
-
-static const struct i2c_device_id tfa9887_id[] = {
-	{ TFA9887_I2C_NAME, 0 },
+static const struct i2c_device_id tfa9887R_i2c_id[] = {
+	{ "tfa9887R", 0 },
 	{ }
 };
+MODULE_DEVICE_TABLE(i2c, tfa9887R_i2c_id);
 
-static struct i2c_driver tfa9887_driver = {
-	.probe = tfa9887_probe,
-	.remove = tfa9887_remove,
-	.suspend = tfa9887_suspend,
-	.resume = tfa9887_resume,
-	.id_table = tfa9887_id,
+static struct i2c_driver tfa9887R_i2c_driver = {
 	.driver = {
-		.name = TFA9887_I2C_NAME,
+		.name = "tfa9887R",
+		.owner = THIS_MODULE,
 	},
+	.probe =    tfa9887R_i2c_probe,
+	.remove =   __devexit_p(tfa9887R_i2c_remove),
+	.id_table = tfa9887R_i2c_id,
+	.shutdown = tfa9887R_i2c_shutdown,
 };
 
-static int __init tfa9887_init(void)
+static __devinit int tfa9887L_i2c_probe(struct i2c_client *i2c,
+		const struct i2c_device_id *id)
 {
-	pr_info("%s\n", __func__);
-	mutex_init(&spk_amp_lock);
-        dsp_enabled = 0;
-	return i2c_add_driver(&tfa9887_driver);
+	unsigned int val;
+	int ret;
+
+	TFA_LOGI("E\n");
+	tfa9887L = devm_kzalloc(&i2c->dev,  sizeof(struct tfa9887_t),
+			GFP_KERNEL);
+
+	if (tfa9887L == NULL)
+		return -ENOMEM;
+	tfa9887L->regmap = regmap_init_i2c(i2c, &tfa9887_regmap);
+	tfa9887L->regmap_byte = regmap_init_i2c(i2c, &tfa9887_regmap_byte);
+	if (IS_ERR(tfa9887L->regmap)) {
+		ret = PTR_ERR(tfa9887L->regmap);
+		dev_err(&i2c->dev, "Failed to allocate register map: %d\n",
+				ret);
+		return ret;
+	}
+
+	i2c_set_clientdata(i2c, tfa9887L);
+	mutex_init(&tfa9887L->lock);
+	tfa9887L->irq = i2c->irq;
+	ret = regmap_read(tfa9887L->regmap, TFA9887_REVISIONNUMBER, &val);
+	if (ret != 0) {
+		dev_err(&i2c->dev, "Failed to read chip revision: %d\n", ret);
+		goto err;
+	}
+	dev_info(&i2c->dev, "TFA9887 revision %d\n",val);
+	if (tfa9887L) {
+		mutex_lock(&tfa9887L->lock);
+		tfa9887L->initialized = true;
+		tfa9887L->dsp_enabled = false;
+		tfa9887L->spkamp_enabled = false;
+		tfa9887L->powered = false;
+		mutex_unlock(&tfa9887L->lock);
+	}
+	return 0;
+err:
+	regmap_exit(tfa9887L->regmap);
+	return ret;
 }
+
+static __devexit int tfa9887L_i2c_remove(struct i2c_client *client)
+{
+	struct tfa9887_t *tfa9887L = i2c_get_clientdata(client);
+	regmap_exit(tfa9887L->regmap);
+	regmap_exit(tfa9887L->regmap_byte);
+	return 0;
+}
+
+static void tfa9887L_i2c_shutdown(struct i2c_client *i2c)
+{
+	if (tfa9887L) {
+		mutex_lock(&tfa9887L->lock);
+		if (i2c->irq)
+			disable_irq(i2c->irq);
+		tfa9887L->initialized = false;
+		mutex_unlock(&tfa9887L->lock);
+	}
+}
+
+static const struct i2c_device_id tfa9887L_i2c_id[] = {
+	{ "tfa9887L", 0 },
+	{ }
+};
+MODULE_DEVICE_TABLE(i2c, tfa9887L_i2c_id);
+
+static struct i2c_driver tfa9887L_i2c_driver = {
+	.driver = {
+		.name = "tfa9887L",
+		.owner = THIS_MODULE,
+	},
+	.probe = tfa9887L_i2c_probe,
+	.remove = __devexit_p(tfa9887L_i2c_remove),
+	.id_table = tfa9887L_i2c_id,
+	.shutdown = tfa9887L_i2c_shutdown,
+};
+
+static int __init tfa9887_modinit(void)
+{
+	int ret = 0;
+	ret = i2c_add_driver(&tfa9887R_i2c_driver);
+	if (ret != 0) {
+		TFA_LOGE("Failed to register tfa9887 I2C driver: %d\n", ret);
+	}
+	ret = i2c_add_driver(&tfa9887L_i2c_driver);
+	if (ret != 0) {
+		TFA_LOGE("Failed to register tfa9887 I2C driver: %d\n", ret);
+	}
+	return ret;
+}
+module_init(tfa9887_modinit);
 
 static void __exit tfa9887_exit(void)
 {
-#ifdef CONFIG_DEBUG_FS
-	debugfs_remove(debugfs_peek);
-	debugfs_remove(debugfs_poke);
-	debugfs_remove(debugfs_tpa_dent);
-#endif
-	i2c_del_driver(&tfa9887_driver);
+	i2c_del_driver(&tfa9887R_i2c_driver);
+	i2c_del_driver(&tfa9887L_i2c_driver);
 }
-
-module_init(tfa9887_init);
 module_exit(tfa9887_exit);
-
-MODULE_DESCRIPTION("tfa9887 Speaker Amp driver");
-MODULE_LICENSE("GPL");
