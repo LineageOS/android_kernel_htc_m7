@@ -101,7 +101,7 @@
 #include "devices-msm8x60.h"
 #include <linux/cm3629.h>
 #include <linux/pn544.h>
-#include <mach/tfa9887.h>
+#include <linux/tfa9887.h>
 #include <mach/tpa6185.h>
 #include <mach/rt5501.h>
 #include <linux/leds.h>
@@ -225,10 +225,10 @@ static struct i2c_board_info msm_i2c_gsbi1_rt5501_info[] = {
 
 static struct i2c_board_info msm_i2c_gsbi1_tfa9887_info[] = {
 	{
-		I2C_BOARD_INFO(TFA9887_I2C_NAME, TFA9887_I2C_SLAVE_ADDR)
+		I2C_BOARD_INFO("tfa9887R", TFA9887_I2C_SLAVE_ADDR)
 	},
 	{
-		I2C_BOARD_INFO(TFA9887L_I2C_NAME, TFA9887L_I2C_SLAVE_ADDR)
+		I2C_BOARD_INFO("tfa9887L", TFA9887L_I2C_SLAVE_ADDR)
 	},
 };
 
