@@ -20,6 +20,7 @@
 #include <linux/slab.h>
 #include <linux/pm_runtime.h>
 #include <linux/slimbus/slimbus.h>
+#include <linux/tfa9887.h>
 #include <sound/core.h>
 #include <sound/soc.h>
 #include <sound/soc-dapm.h>
@@ -29,7 +30,6 @@
 #include <mach/socinfo.h>
 #include "msm-pcm-routing.h"
 #include "../codecs/wcd9310.h"
-#include <mach/tfa9887.h>
 #include <mach/tpa6185.h>
 #include <mach/rt5501.h>
 
@@ -202,6 +202,8 @@ static int msm8960_mi2s_rx_free_gpios(void)
 	return 0;
 }
 
+static bool tfa_initialized = false;
+
 static int msm8960_mi2s_hw_params(struct snd_pcm_substream *substream,
 			struct snd_pcm_hw_params *params)
 {
@@ -213,6 +215,12 @@ static int msm8960_mi2s_hw_params(struct snd_pcm_substream *substream,
 		bit_clk_set = 18432000/(rate * 2 * 24);
 		clk_set_rate(mi2s_rx_bit_clk, bit_clk_set);
 	}
+
+	if (!tfa_initialized) {
+		Tfa9887_Init(rate);
+		tfa_initialized = true;
+	}
+
 	return 1;
 }
 
@@ -220,12 +228,7 @@ static int msm8960_mi2s_hw_params(struct snd_pcm_substream *substream,
 static void msm8960_mi2s_shutdown(struct snd_pcm_substream *substream)
 {
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-		pr_info("spk amp off++");
-		set_tfa9887_spkamp(0, 0);
-#ifdef CONFIG_AMP_TFA9887L
-		set_tfa9887l_spkamp(0,0);
-#endif
-		pr_info("spk amp off--");
+		Tfa9887_SetSpkAmp(0);
 		if (mi2s_rx_bit_clk) {
 			clk_disable_unprepare(mi2s_rx_bit_clk);
 			clk_put(mi2s_rx_bit_clk);
@@ -312,12 +315,7 @@ static int msm8960_mi2s_startup(struct snd_pcm_substream *substream)
 		if (ret < 0)
 			pr_err("set format for codec dai failed\n");
 	}
-	pr_info("spk amp on ++");
-	set_tfa9887_spkamp(1, 0);
-#ifdef CONFIG_AMP_TFA9887L
-		set_tfa9887l_spkamp(1,0);
-#endif
-	pr_info("spk amp on --");
+	Tfa9887_SetSpkAmp(1);
 	return ret;
 }
 
