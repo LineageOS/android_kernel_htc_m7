@@ -472,3 +472,4 @@ obj-$(CONFIG_IO_FOOTPRINT) += io_footprint.o
 
 #PWR2_ADD, @CPU Sniffer: CPU usage statistics.
 obj-y += htc_cpu_usage_stats.o
+obj-y += htc_lpm.o
