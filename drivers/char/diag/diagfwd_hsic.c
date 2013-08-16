@@ -96,10 +96,6 @@ static void diag_read_hsic_work_fn(struct work_struct *work)
 static void diag_hsic_read_complete_callback(void *ctxt, char *buf,
 					int buf_size, int actual_size)
 {
-#if DIAG_XPST && defined(CONFIG_DIAGFWD_BRIDGE_CODE)
-	int type;
-	static int pkt_hdr = DIAG_BODY_OF_NEXT_PKT, first_pkt = 1;
-#endif
 	int err = -2;
 
 	if (!driver->hsic_ch) {

@@ -85,7 +85,6 @@
 #define RCV_PAMP_GPIO    67
 #define RCV_SPK_SEL_PMGPIO    24
 
-static int msm_hac_control;
 static int aux_pcm_open = 0;
 enum {
 	SLIM_1_RX_1 = 145, 
