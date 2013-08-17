@@ -23,7 +23,7 @@
 #include <linux/usb/gadget.h>
 #include <linux/usb/otg.h>
 #include <linux/wakelock.h>
-#ifdef CONFIG_MACH_M7_UL
+#if defined(CONFIG_MACH_M7_UL) || defined(CONFIG_MACH_MONARUDO)
 #include <mach/board.h>
 #endif
 #include <linux/pm_qos.h>
@@ -219,7 +219,7 @@ struct msm_otg_platform_data {
 	unsigned int mpm_otgsessvld_int;
 	bool mhl_enable;
 	bool disable_reset_on_disconnect;
-#ifdef CONFIG_MACH_M7_UL
+#if defined(CONFIG_MACH_M7_UL) || defined(CONFIG_MACH_MONARUDO)
 	char *ldo_3v3_name;
 	char *ldo_1v8_name;
         bool enable_dcd;
@@ -228,7 +228,7 @@ struct msm_otg_platform_data {
 	bool enable_lpm_on_dev_suspend;
 	bool core_clk_always_on_workaround;
 	struct msm_bus_scale_pdata *bus_scale_table;
-#ifdef CONFIG_MACH_M7_UL
+#if defined(CONFIG_MACH_M7_UL) || defined(CONFIG_MACH_MONARUDO)
 	int reset_phy_before_lpm;
 	void (*usb_uart_switch)(int uart);
 	int ldo_power_collapse;
@@ -313,7 +313,7 @@ struct msm_otg {
 	struct usb_phy phy;
 	struct msm_otg_platform_data *pdata;
 	int irq;
-#ifndef CONFIG_MACH_M7_UL
+#if !defined(CONFIG_MACH_M7_UL) && !defined(CONFIG_MACH_MONARUDO)
 	int async_irq;
 #endif
 	struct clk *clk;
@@ -338,7 +338,7 @@ struct msm_otg {
 #define A_BUS_SUSPEND	14
 #define A_CONN		15
 #define B_BUS_REQ	16
-#ifndef CONFIG_MACH_M7_UL
+#if !defined(CONFIG_MACH_M7_UL) && !defined(CONFIG_MACH_MONARUDO)
 #define MHL	        17
 #endif
 	unsigned long inputs;
@@ -350,18 +350,18 @@ struct msm_otg {
 	unsigned cur_power;
 	struct delayed_work chg_work;
 	struct delayed_work pmic_id_status_work;
-#ifndef CONFIG_MACH_M7_UL
+#if !defined(CONFIG_MACH_M7_UL) && !defined(CONFIG_MACH_MONARUDO)
 	struct delayed_work check_ta_work;
 #endif
 	enum usb_chg_state chg_state;
 	enum usb_chg_type chg_type;
-#ifdef CONFIG_MACH_M7_UL
+#if defined(CONFIG_MACH_M7_UL) || defined(CONFIG_MACH_MONARUDO)
 	u8 dcd_retries;
 #else
 	unsigned dcd_time;
 #endif
 	struct wake_lock wlock;
-#ifdef CONFIG_MACH_M7_UL
+#if defined(CONFIG_MACH_M7_UL) || defined(CONFIG_MACH_MONARUDO)
 	struct wake_lock usb_otg_wlock;
 	struct wake_lock cable_detect_wlock;
 #endif
@@ -371,7 +371,7 @@ struct msm_otg {
 	unsigned long caps;
 	struct msm_xo_voter *xo_handle;
 	uint32_t bus_perf_client;
-#ifndef CONFIG_MACH_M7_UL
+#if !defined(CONFIG_MACH_M7_UL) && !defined(CONFIG_MACH_MONARUDO)
 	bool mhl_enabled;
 #endif
 	/*
@@ -396,10 +396,10 @@ struct msm_otg {
 #define PHY_PWR_COLLAPSED		BIT(0)
 #define PHY_RETENTIONED			BIT(1)
 #define XO_SHUTDOWN			BIT(2)
-#ifndef CONFIG_MACH_M7_UL
+#if !defined(CONFIG_MACH_M7_UL) && !defined(CONFIG_MACH_MONARUDO)
 #define CLOCKS_DOWN			BIT(3)
 #endif
-#ifdef CONFIG_MACH_M7_UL
+#if defined(CONFIG_MACH_M7_UL) || defined(CONFIG_MACH_MONARUDO)
 	struct work_struct notifier_work;
 	enum usb_connect_type connect_type;
 	int connect_type_ready;
