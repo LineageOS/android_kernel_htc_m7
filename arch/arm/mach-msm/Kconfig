@@ -2647,6 +2647,7 @@ config MSM_HSIC_SYSMON_TEST
 config MACH_MONARUDO
 	depends on ARCH_APQ8064
 	bool "APQ8064 MONARUDO"
+	select FB_MSM_MIPI_DSI
 	help
 	  Support for the HTC APQ8064 MONARUDO.
 
