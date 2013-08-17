@@ -67,7 +67,7 @@ static void notify_uspace_work_fn(struct work_struct *work)
 {
 	struct sleep_data *sleep_info = &core_sleep_info;
 
-	
+	/* Notify polling threads on change of value */
 	sysfs_notify(sleep_info->kobj, NULL, "timer_expired");
 }
 
@@ -90,7 +90,7 @@ static enum hrtimer_restart timer_func(struct hrtimer *handle)
 		return HRTIMER_NORESTART;
 }
 
-static ssize_t timer_val_ms_show(struct kobject *kobj,
+static ssize_t show_timer_val_ms(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
 {
 	int val = 0;
@@ -103,7 +103,7 @@ static ssize_t timer_val_ms_show(struct kobject *kobj,
 	return sprintf(buf, "%d\n", val);
 }
 
-static ssize_t timer_val_ms_store(struct kobject *kobj,
+static ssize_t store_timer_val_ms(struct kobject *kobj,
 		struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	int val = 0;
@@ -116,7 +116,7 @@ static ssize_t timer_val_ms_store(struct kobject *kobj,
 	return count;
 }
 
-static ssize_t timer_expired_show(struct kobject *kobj,
+static ssize_t show_timer_expired(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
 {
 	int val = 0;
@@ -129,40 +129,66 @@ static ssize_t timer_expired_show(struct kobject *kobj,
 	return sprintf(buf, "%d\n", val);
 }
 
-#define SLEEP_INFO_ATTR(_name) \
-	static struct kobj_attribute _name##_attr = \
-		__ATTR(_name, S_IWUSR, _name##_show, _name##_store)
+#define MSM_SLEEP_RO_ATTRIB(att) ({ \
+		struct attribute *attrib = NULL; \
+		struct kobj_attribute *ptr = NULL; \
+		ptr = kzalloc(sizeof(struct kobj_attribute), GFP_KERNEL); \
+		if (ptr) { \
+			ptr->attr.name = #att; \
+			ptr->attr.mode = S_IRUGO; \
+			ptr->show = show_##att; \
+			ptr->store = NULL; \
+			attrib = &ptr->attr; \
+		} \
+		attrib; })
 
-#define SLEEP_INFO_ATTR_RO(_name) \
-	static struct kobj_attribute _name##_attr = \
-		__ATTR(_name, S_IRUGO, _name##_show, NULL)
+#define MSM_SLEEP_RW_ATTRIB(att) ({ \
+		struct attribute *attrib = NULL; \
+		struct kobj_attribute *ptr = NULL; \
+		ptr = kzalloc(sizeof(struct kobj_attribute), GFP_KERNEL); \
+		if (ptr) { \
+			ptr->attr.name = #att; \
+			ptr->attr.mode = S_IWUSR; \
+			ptr->show = show_##att; \
+			ptr->store = store_##att; \
+			attrib = &ptr->attr; \
+		} \
+		attrib; })
 
-SLEEP_INFO_ATTR(timer_val_ms);
-SLEEP_INFO_ATTR_RO(timer_expired);
-
-static struct attribute *properties_sleep_info_attrs[] = {
-	&timer_val_ms_attr.attr,
-	&timer_expired_attr.attr,
-	NULL,
-};
-
-static struct attribute_group sleep_info_attr_group = {
-	.attrs = properties_sleep_info_attrs,
-};
 
 static int add_sysfs_objects(struct sleep_data *sleep_info)
 {
 	int err = 0;
+	int i = 0;
+	const int attr_count = 3;
+
+	struct attribute **attribs =
+		kzalloc(sizeof(struct attribute *) * attr_count, GFP_KERNEL);
+
+	if (!attribs)
+		return -ENOMEM;
 
 	atomic_set(&sleep_info->timer_expired, 0);
 	atomic_set(&sleep_info->timer_val_ms, INT_MAX);
 
-	sleep_info->attr_group = &sleep_info_attr_group;
+	attribs[0] = MSM_SLEEP_RW_ATTRIB(timer_val_ms);
+	attribs[1] = MSM_SLEEP_RO_ATTRIB(timer_expired);
+	attribs[2] = NULL;
 
+	for (i = 0; i < attr_count - 1 ; i++) {
+		if (!attribs[i])
+			goto release_attribs;
+	}
+
+	sleep_info->attr_group = kzalloc(sizeof(struct attribute_group),
+						GFP_KERNEL);
+	if (!sleep_info->attr_group)
+		goto release_attribs;
+	sleep_info->attr_group->attrs = attribs;
 	sleep_info->kobj = kobject_create_and_add("sleep-stats",
 			&get_cpu_device(0)->kobj);
 	if (!sleep_info->kobj)
-		return -ENOMEM;
+		goto release_attr_group;
 
 	err = sysfs_create_group(sleep_info->kobj, sleep_info->attr_group);
 	if (err)
@@ -170,7 +196,18 @@ static int add_sysfs_objects(struct sleep_data *sleep_info)
 	else
 		kobject_uevent(sleep_info->kobj, KOBJ_ADD);
 
-	return err;
+	if (!err)
+		return err;
+
+release_attr_group:
+	kfree(sleep_info->attr_group);
+release_attribs:
+	for (i = 0; i < attr_count - 1 ; i++)
+		if (attribs[i])
+			kfree(attribs[i]);
+	kfree(attribs);
+
+	return -ENOMEM;
 }
 
 static void remove_sysfs_objects(struct sleep_data *sleep_info)
@@ -207,7 +244,7 @@ static int __init msm_sleep_info_init(void)
 		}
 	}
 
-	
+	/* Create sysfs object */
 	err = add_sysfs_objects(sleep_info);
 	if (err) {
 		printk(KERN_INFO "msm_sleep_stats: Failed to initialize sleep stats");
