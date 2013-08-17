@@ -113,6 +113,7 @@ struct htc_battery_platform_data {
 	struct mpp_config_data mpp_data;
 	int chg_limit_active_mask;
 	int critical_low_voltage_mv;
+	int critical_alarm_voltage_mv;
 	int *critical_alarm_vol_ptr;
 	int critical_alarm_vol_cols;
 	int overload_vol_thr_mv;

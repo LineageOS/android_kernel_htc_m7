@@ -291,7 +291,7 @@ board-8930-all-objs += board-8930.o board-8930-camera.o board-8930-display.o boa
 board-8064-all-objs += board-8064.o board-8064-pmic.o board-8064-storage.o board-8064-gpiomux.o board-8064-camera.o board-8064-display.o board-8064-gpu.o
 board-elite-all-objs += board-elite.o board-elite-gpiomux.o devices-8960.o board-8960-storage.o
 # board-monarudo-all-objs += board-monarudo.o board-monarudo-pmic.o board-monarudo-storage.o board-monarudo-gpiomux.o board-monarudo-display.o board-monarudo-gpu.o board-monarudo-keypad.o board-monarudo-wifi.o
-board-monarudo-all-objs += board-monarudo.o board-monarudo-pmic.o board-monarudo-storage.o board-monarudo-gpiomux.o board-monarudo-display.o board-monarudo-gpu.o board-monarudo-keypad.o board-monarudo-wifi.o  board-monarudo-audio.o
+board-monarudo-all-objs += board-monarudo.o board-monarudo-pmic.o board-monarudo-storage.o board-monarudo-gpiomux.o board-monarudo-display.o board-monarudo-panel.o board-monarudo-gpu.o board-monarudo-keypad.o board-monarudo-wifi.o  board-monarudo-audio.o
 board-m7-all-objs += board-m7.o board-m7-pmic.o board-m7-storage.o board-m7-gpiomux.o board-m7-keypad.o board-m7-wifi.o board-m7-audio.o
 ifdef CONFIG_FB_MSM
 board-m7-all-objs += board-m7-display.o board-m7-gpu.o
@@ -426,7 +426,9 @@ obj-$(CONFIG_ARCH_MSM9615) += gpiomux-v2.o gpiomux.o
 obj-$(CONFIG_ARCH_MSM8974) += gpiomux-v2.o gpiomux.o
 obj-$(CONFIG_ARCH_MSM9625) += gpiomux-v2.o gpiomux.o
 
-
+ifdef CONFIG_MACH_MONARUDO
+obj-$(CONFIG_MSM_SLEEP_STATS) += idle_stats.o
+endif
 obj-$(CONFIG_MSM_SLEEP_STATS_DEVICE) += idle_stats_device.o
 obj-$(CONFIG_MSM_DCVS) += msm_dcvs_scm.o msm_dcvs.o msm_mpdecision.o
 obj-$(CONFIG_MSM_RUN_QUEUE_STATS) += msm_rq_stats.o

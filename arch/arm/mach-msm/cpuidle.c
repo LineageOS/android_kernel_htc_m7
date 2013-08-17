@@ -15,7 +15,11 @@
 #include <linux/init.h>
 #include <linux/cpuidle.h>
 #include <mach/cpuidle.h>
+#ifdef CONFIG_MACH_MONARUDO
+#include <linux/cpu_pm.h>
+#else
 #include <trace/events/power.h>
+#endif
 #include "pm.h"
 
 static DEFINE_PER_CPU_SHARED_ALIGNED(struct cpuidle_device, msm_cpuidle_devs);
@@ -66,6 +70,29 @@ static struct msm_cpuidle_state msm_cstates[] = {
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE_STANDALONE},
 };
 
+
+#if defined(CONFIG_MSM_SLEEP_STATS) && defined(CONFIG_MACH_MONARUDO)
+static DEFINE_PER_CPU(struct atomic_notifier_head, msm_cpuidle_notifiers);
+
+int msm_cpuidle_register_notifier(unsigned int cpu, struct notifier_block *nb)
+{
+	struct atomic_notifier_head *head =
+		&per_cpu(msm_cpuidle_notifiers, cpu);
+
+	return atomic_notifier_chain_register(head, nb);
+}
+EXPORT_SYMBOL(msm_cpuidle_register_notifier);
+
+int msm_cpuidle_unregister_notifier(unsigned int cpu, struct notifier_block *nb)
+{
+	struct atomic_notifier_head *head =
+		&per_cpu(msm_cpuidle_notifiers, cpu);
+
+	return atomic_notifier_chain_unregister(head, nb);
+}
+EXPORT_SYMBOL(msm_cpuidle_unregister_notifier);
+#endif
+
 static int msm_cpuidle_enter(
 	struct cpuidle_device *dev, struct cpuidle_driver *drv, int index)
 {
@@ -73,9 +100,21 @@ static int msm_cpuidle_enter(
 	int i = 0;
 	enum msm_pm_sleep_mode pm_mode;
 	struct cpuidle_state_usage *st_usage = NULL;
+#if defined(CONFIG_MSM_SLEEP_STATS) && defined(CONFIG_MACH_MONARUDO)
+	struct atomic_notifier_head *head =
+			&__get_cpu_var(msm_cpuidle_notifiers);
+#endif
+#ifdef CONFIG_MACH_MONARUDO
+	local_irq_disable();
+#endif
+#if defined(CONFIG_MSM_SLEEP_STATS) && defined(CONFIG_MACH_MONARUDO)
+	atomic_notifier_call_chain(head, MSM_CPUIDLE_STATE_ENTER, NULL);
+#endif
 
 	pm_mode = msm_pm_idle_prepare(dev, drv, index);
+#ifndef CONFIG_MACH_MONARUDO
 	trace_cpu_idle_rcuidle(pm_mode + 1, dev->cpu);
+#endif
 	dev->last_residency = msm_pm_idle_enter(pm_mode);
 	for (i = 0; i < dev->state_count; i++) {
 		st_usage = &dev->states_usage[i];
@@ -85,8 +124,13 @@ static int msm_cpuidle_enter(
 			break;
 		}
 	}
+#ifndef CONFIG_MACH_MONARUDO
 	trace_cpu_idle_rcuidle(PWR_EVENT_EXIT, dev->cpu);
+#endif
 
+#if defined(CONFIG_MSM_SLEEP_STATS) && defined(CONFIG_MACH_MONARUDO)
+	atomic_notifier_call_chain(head, MSM_CPUIDLE_STATE_EXIT, NULL);
+#endif
 
 	local_irq_enable();
 
@@ -102,6 +146,13 @@ static void __init msm_cpuidle_set_states(void)
 
 	for (i = 0; i < ARRAY_SIZE(msm_cstates); i++) {
 		cstate = &msm_cstates[i];
+		/* We have an asymmetric CPU C-State in MSMs.
+		 * The primary CPU can do PC while all secondary cpus
+		 * can only do standalone PC as part of their idle LPM.
+		 * However, the secondary cpus can do PC when hotplugged
+		 * We do not care about the hotplug here.
+		 * Register the C-States available for Core0.
+		 */
 		if (cstate->cpu)
 			continue;
 
@@ -139,7 +190,7 @@ static void __init msm_cpuidle_set_cpu_statedata(struct cpuidle_device *dev)
 		BUG_ON(state_count > msm_cpuidle_driver.state_count);
 	}
 
-	dev->state_count = state_count; 
+	dev->state_count = state_count; /* Per cpu state count */
 }
 
 int __init msm_cpuidle_init(void)
@@ -168,3 +219,18 @@ int __init msm_cpuidle_init(void)
 
 	return 0;
 }
+
+#ifdef CONFIG_MACH_MONARUDO
+static int __init msm_cpuidle_early_init(void)
+{
+#ifdef CONFIG_MSM_SLEEP_STATS
+	unsigned int cpu;
+
+	for_each_possible_cpu(cpu)
+		ATOMIC_INIT_NOTIFIER_HEAD(&per_cpu(msm_cpuidle_notifiers, cpu));
+#endif
+	return 0;
+}
+
+early_initcall(msm_cpuidle_early_init);
+#endif
