@@ -36,7 +36,6 @@
 int __init monarudo_init_keypad(void);
 
 
-
 #define LCD_TE			GPIO(0)
 #define DRIVER_EN_XA_XB		GPIO(1)
 #define RAW_RST_XC_XD		GPIO(1)
