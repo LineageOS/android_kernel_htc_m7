@@ -473,9 +473,8 @@ config USB_EG20T
 
 config USB_CI13XXX_MSM
 	tristate "MIPS USB CI13xxx for MSM"
-	depends on ARCH_MSM
+	depends on ARCH_MSM && (USB_MSM_OTG || USB_MSM_OTG_HTC)
 	select USB_GADGET_DUALSPEED
-	select USB_MSM_OTG
 	help
 	  MSM SoC has chipidea USB controller.  This driver uses
 	  ci13xxx_udc core.
