@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "baee8101_e2b468d2",
+        "filename": "drivers/usb/gadget/Kconfig",
+        "patchSetId": 1
+      },
+      "lineNbr": 476,
+      "author": {
+        "id": 3671
+      },
+      "writtenOn": "2013-08-23T13:02:16Z",
+      "side": 1,
+      "message": "i guess my thought here was that since we don\u0027t really want to be selecting USB_MSM_OTG (we want USB_MSM_OTG_HTC) that if we depended on one or the other, it would take care of it. rather than just selecting USB_MSM_OTG",
+      "parentUuid": "baee8101_c2a3a49d",
+      "revId": "5844a1190cc6e23c4bc412bf51f675bb9a0d66df",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baee8101_a2a0a091",
         "filename": "drivers/usb/host/Kconfig",
         "patchSetId": 1
