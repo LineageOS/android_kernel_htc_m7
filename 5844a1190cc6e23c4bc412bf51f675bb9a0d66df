@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baee8101_c2a3a49d",
+        "filename": "drivers/usb/gadget/Kconfig",
+        "patchSetId": 1
+      },
+      "lineNbr": 476,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2013-08-23T12:22:36Z",
+      "side": 1,
+      "message": "this logic looks like it got reversed... USB_CI13XXX_MSM should be selecting MSM_OTG",
+      "revId": "5844a1190cc6e23c4bc412bf51f675bb9a0d66df",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baee8101_a2a0a091",
+        "filename": "drivers/usb/host/Kconfig",
+        "patchSetId": 1
+      },
+      "lineNbr": 174,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2013-08-23T12:22:36Z",
+      "side": 1,
+      "message": "same logic reversal here",
+      "revId": "5844a1190cc6e23c4bc412bf51f675bb9a0d66df",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
