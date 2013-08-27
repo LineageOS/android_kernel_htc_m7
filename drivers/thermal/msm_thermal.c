@@ -66,7 +66,7 @@ static void check_temp(struct work_struct *work)
 				tsens_dev.sensor_num);
 		goto reschedule;
 	} else
-		pr_info("msm_thermal: TSENS sensor %d (%ld C)\n",
+		pr_debug("msm_thermal: TSENS sensor %d (%ld C)\n",
 				tsens_dev.sensor_num, temp);
 	if (temp >= msm_thermal_info.limit_temp) {
 		max_freq = msm_thermal_info.limit_freq;
