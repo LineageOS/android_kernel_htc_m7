@@ -3409,7 +3409,7 @@ static struct cm3629_platform_data cm36282_pdata_sk2 = {
 	.ps1_thd_set = 0x15,
 	.ps1_thd_no_cal = 0x90,
 	.ps1_thd_with_cal = 0xD,
-	.ps_calibration_rule = 1,
+	.ps_calibration_rule = 3,
 	.ps_conf1_val = CM3629_PS_DR_1_320 | CM3629_PS_IT_1_6T |
 			CM3629_PS1_PERS_3,
 	.ps_conf2_val = CM3629_PS_ITB_1 | CM3629_PS_ITR_1 |
