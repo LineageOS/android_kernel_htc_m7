@@ -1002,6 +1002,12 @@ config FB_MSM_EBI2_PANEL_DETECT
 	---help---
 	  Support for EBI2 panel auto detect
 
+config FB_MSM_CABC_LEVEL_CONTROL
+	bool "CABC LEVEL CONTROL"
+	default n
+	---help---
+	  Use attribute to switch CABC level.
+
 if FB_MSM_MDSS
 	source "drivers/video/msm/mdss/Kconfig"
 endif
