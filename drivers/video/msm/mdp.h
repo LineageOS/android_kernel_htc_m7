@@ -243,6 +243,12 @@ struct mdp_dma_data {
 	struct completion dmap_comp;
 };
 
+struct mdp_reg {
+	uint32_t reg;
+	uint32_t val;
+	uint32_t mask;
+};
+
 extern struct list_head mdp_hist_lut_list;
 extern struct mutex mdp_hist_lut_list_mutex;
 struct mdp_hist_lut_mgmt {

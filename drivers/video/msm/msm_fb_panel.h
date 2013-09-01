@@ -90,6 +90,8 @@ struct lcdc_panel_info {
 	/* Pad height */
 	uint32 yres_pad;
 	boolean is_sync_active_high;
+
+	__u32 no_set_tear;
 };
 
 struct mddi_panel_info {
@@ -176,6 +178,9 @@ struct msm_panel_info {
 	__u32 is_3d_panel;
 	__u32 frame_rate;
 	__u32 frame_interval;
+	__u32 width;
+	__u32 height;
+	__u32 camera_backlight;
 
 	struct mddi_panel_info mddi;
 	struct lcd_panel_info lcd;
@@ -208,9 +213,15 @@ struct msm_fb_panel_data {
 	int (*clk_func) (int enable);
 	int (*fps_level_change) (struct platform_device *pdev,
 					u32 fps_level);
+#ifdef CONFIG_FB_MSM_CABC
+	int (*autobl_enable) (int on, struct msm_fb_data_type *);
+	void (*enable_cabc) (int, bool, struct msm_fb_data_type *);
+#endif
 	void (*color_enhance) (struct msm_fb_data_type *, int on);
-	void (*sre_ctrl) (struct msm_fb_data_type *, unsigned long);
 	void (*dimming_on) (struct msm_fb_data_type *);
+	void (*acl_enable) (int on, struct msm_fb_data_type *);
+	void (*set_cabc) (struct msm_fb_data_type *, int mode);
+	void (*sre_ctrl) (struct msm_fb_data_type *, unsigned long);
 };
 
 /*===========================================================================
