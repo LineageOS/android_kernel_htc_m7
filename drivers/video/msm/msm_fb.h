@@ -250,6 +250,7 @@ void msm_fb_wait_for_fence(struct msm_fb_data_type *mfd);
 int msm_fb_signal_timeline(struct msm_fb_data_type *mfd);
 void msm_fb_release_timeline(struct msm_fb_data_type *mfd);
 void msm_fb_release_busy(struct msm_fb_data_type *mfd);
+void mdp_color_enhancement(const struct mdp_reg *reg_seq, int size);
 
 #ifdef CONFIG_FB_BACKLIGHT
 void msm_fb_config_backlight(struct msm_fb_data_type *mfd);
