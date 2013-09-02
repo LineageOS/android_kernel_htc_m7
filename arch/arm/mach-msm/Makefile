@@ -49,8 +49,7 @@ else
 endif
 obj-$(CONFIG_HOTPLUG_CPU) += hotplug.o
 
-obj-$(CONFIG_MSM_CPU_AVS) += avs.o
-obj-$(CONFIG_MSM_AVS_HW) += avs_hw.o
+obj-$(CONFIG_MSM_AVS_HW) += avs.o
 obj-$(CONFIG_CPU_V6) += idle-v6.o
 obj-$(CONFIG_CPU_V7) += idle-v7.o
 obj-$(CONFIG_MSM_JTAG) += jtag.o
@@ -276,7 +275,7 @@ obj-$(CONFIG_MACH_MSM7X25_FFA) += board-msm7x27.o devices-msm7x25.o
 obj-$(CONFIG_ARCH_MSM8960) += clock-local.o clock-dss-8960.o clock-8960.o clock-rpm.o clock-pll.o
 obj-$(CONFIG_ARCH_MSM8960) += footswitch-8x60.o
 ifdef CONFIG_ARCH_APQ8064
-obj-$(CONFIG_ARCH_APQ8064) += acpuclock-8064.o acpuclock-krait.o acpuclock-krait-debug.o
+obj-$(CONFIG_ARCH_APQ8064) += acpuclock-8064.o acpuclock-krait.o
 obj-$(CONFIG_MSM_CPU_PWRCTL) +=  msm_cpu_pwrctl.o
 else
 obj-$(CONFIG_ARCH_MSM8960) += acpuclock-8960.o
@@ -426,7 +425,7 @@ obj-$(CONFIG_ARCH_MSM9615) += gpiomux-v2.o gpiomux.o
 obj-$(CONFIG_ARCH_MSM8974) += gpiomux-v2.o gpiomux.o
 obj-$(CONFIG_ARCH_MSM9625) += gpiomux-v2.o gpiomux.o
 
-
+obj-$(CONFIG_MSM_SLEEP_STATS) += idle_stats.o
 obj-$(CONFIG_MSM_SLEEP_STATS_DEVICE) += idle_stats_device.o
 obj-$(CONFIG_MSM_DCVS) += msm_dcvs_scm.o msm_dcvs.o msm_mpdecision.o
 obj-$(CONFIG_MSM_RUN_QUEUE_STATS) += msm_rq_stats.o

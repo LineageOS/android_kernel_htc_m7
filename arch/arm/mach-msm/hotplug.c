@@ -1,7 +1,7 @@
 /*
  *  Copyright (C) 2002 ARM Ltd.
  *  All Rights Reserved
- *  Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+ *  Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -34,6 +34,8 @@ static DEFINE_PER_CPU_SHARED_ALIGNED(struct msm_hotplug_device,
 
 static inline void cpu_enter_lowpower(void)
 {
+	/* Just flush the cache. Changing the coherency is not yet
+	 * available on msm. */
 	flush_cache_all();
 }
 
@@ -43,7 +45,7 @@ static inline void cpu_leave_lowpower(void)
 
 static inline void platform_do_lowpower(unsigned int cpu, int *spurious)
 {
-	
+	/* Just enter wfi for now. TODO: Properly shut off the cpu. */
 	for (;;) {
 
 		msm_pm_cpu_enter_lowpower(cpu);
@@ -68,15 +70,19 @@ static inline void platform_do_lowpower(unsigned int cpu, int *spurious)
 
 int platform_cpu_kill(unsigned int cpu)
 {
-	struct completion *killed =
-		&per_cpu(msm_hotplug_devices, cpu).cpu_killed;
+	int ret;
 
-	if (!wait_for_completion_timeout(killed, HZ * 5))
-		return -EBUSY;
-
-	return msm_pm_wait_cpu_shutdown(cpu);
+	ret = msm_pm_wait_cpu_shutdown(cpu);
+	if (ret)
+		return 0;
+	return 1;
 }
 
+/*
+ * platform-specific code to shutdown a CPU
+ *
+ * Called with IRQs disabled
+ */
 void platform_cpu_die(unsigned int cpu)
 {
 	int spurious = 0;
@@ -87,6 +93,9 @@ void platform_cpu_die(unsigned int cpu)
 		BUG();
 	}
 	complete(&__get_cpu_var(msm_hotplug_devices).cpu_killed);
+	/*
+	 * we're ready for shutdown now, so do it
+	 */
 	cpu_enter_lowpower();
 	platform_do_lowpower(cpu, &spurious);
 
@@ -99,6 +108,10 @@ void platform_cpu_die(unsigned int cpu)
 
 int platform_cpu_disable(unsigned int cpu)
 {
+	/*
+	 * we don't allow CPU 0 to be shutdown (it is still too special
+	 * e.g. clock tick interrupts)
+	 */
 	return cpu == 0 ? -EPERM : 0;
 }
 
@@ -112,6 +125,14 @@ int platform_cpu_disable(unsigned int cpu)
 static int hotplug_rtb_callback(struct notifier_block *nfb,
 				unsigned long action, void *hcpu)
 {
+	/*
+	 * Bits [19:4] of the data are the online mask, lower 4 bits are the
+	 * cpu number that is being changed. Additionally, changes to the
+	 * online_mask that will be done by the current hotplug will be made
+	 * even though they aren't necessarily in the online mask yet.
+	 *
+	 * XXX: This design is limited to supporting at most 16 cpus
+	 */
 	int this_cpumask = CPUSET_OF(1 << (int)hcpu);
 	int cpumask = CPUSET_OF(cpumask_bits(cpu_online_mask)[0]);
 	int cpudata = CPU_OF((int)hcpu) | cpumask;
