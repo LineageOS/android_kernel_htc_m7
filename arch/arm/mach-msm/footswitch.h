@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2012 Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2012 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -16,6 +16,7 @@
 
 #include <linux/regulator/machine.h>
 
+/* Device IDs */
 #define FS_GFX2D0	0
 #define FS_GFX2D1	1
 #define FS_GFX3D	2

@@ -5218,7 +5218,7 @@ static void __init m7_common_init(void)
 	platform_device_register(&m7_device_rpm_regulator);
 	if (msm_xo_init())
 		pr_err("Failed to initialize XO votes\n");
-	clk_ignor_list_add("msm_sdcc.3", "core_clk", &apq8064_clock_init_data_r2);
+	//clk_ignor_list_add("msm_sdcc.3", "core_clk", &apq8064_clock_init_data_r2);
 	msm_clock_init(&apq8064_clock_init_data_r2);
 	m7_init_gpiomux();
 #ifdef CONFIG_RESET_BY_CABLE_IN

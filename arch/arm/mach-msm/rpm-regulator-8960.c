@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -15,6 +15,7 @@
 
 #include "rpm-regulator-private.h"
 
+/* RPM regulator request formats */
 static struct rpm_vreg_parts ldo_parts = {
 	.request_len	= 2,
 	.uV		= REQUEST_MEMBER(0, 0x007FFFFF,  0),
@@ -57,6 +58,7 @@ static struct rpm_vreg_parts ncp_parts = {
 	.freq		= REQUEST_MEMBER(0, 0x3E000000, 25),
 };
 
+/* Physically available PMIC regulator voltage setpoint ranges */
 static struct vreg_range pldo_ranges[] = {
 	VOLTAGE_RANGE( 750000, 1487500, 12500),
 	VOLTAGE_RANGE(1500000, 3075000, 25000),
@@ -70,6 +72,11 @@ static struct vreg_range nldo_ranges[] = {
 static struct vreg_range nldo1200_ranges[] = {
 	VOLTAGE_RANGE( 375000,  743750,  6250),
 	VOLTAGE_RANGE( 750000, 1537500, 12500),
+};
+
+static struct vreg_range ln_ldo_ranges[] = {
+	VOLTAGE_RANGE( 690000, 1110000,  60000),
+	VOLTAGE_RANGE(1380000, 2220000, 120000),
 };
 
 static struct vreg_range smps_ranges[] = {
@@ -91,6 +98,7 @@ static struct vreg_range ncp_ranges[] = {
 static struct vreg_set_points pldo_set_points = SET_POINTS(pldo_ranges);
 static struct vreg_set_points nldo_set_points = SET_POINTS(nldo_ranges);
 static struct vreg_set_points nldo1200_set_points = SET_POINTS(nldo1200_ranges);
+static struct vreg_set_points ln_ldo_set_points = SET_POINTS(ln_ldo_ranges);
 static struct vreg_set_points smps_set_points = SET_POINTS(smps_ranges);
 static struct vreg_set_points ftsmps_set_points = SET_POINTS(ftsmps_ranges);
 static struct vreg_set_points ncp_set_points = SET_POINTS(ncp_ranges);
@@ -99,6 +107,7 @@ static struct vreg_set_points *all_set_points[] = {
 	&pldo_set_points,
 	&nldo_set_points,
 	&nldo1200_set_points,
+	&ln_ldo_set_points,
 	&smps_set_points,
 	&ftsmps_set_points,
 	&ncp_set_points,
@@ -188,6 +197,7 @@ static struct vreg vregs[] = {
 	LDO(L10,  "8921_l10",  "8921_l10_pc", pldo,     LDO_600,  0),
 	LDO(L11,  "8921_l11",  "8921_l11_pc", pldo,     LDO_150,  0),
 	LDO(L12,  "8921_l12",  "8921_l12_pc", nldo,     LDO_150,  1),
+	LDO(L13,  "8921_l13",  NULL,          ln_ldo,   LDO_5,    0),
 	LDO(L14,  "8921_l14",  "8921_l14_pc", pldo,     LDO_50,   0),
 	LDO(L15,  "8921_l15",  "8921_l15_pc", pldo,     LDO_150,  0),
 	LDO(L16,  "8921_l16",  "8921_l16_pc", pldo,     LDO_300,  0),
@@ -262,8 +272,12 @@ static int pc_id_to_real_id(int id)
 {
 	int real_id;
 
-	if (id >= RPM_VREG_ID_PM8921_L1_PC && id <= RPM_VREG_ID_PM8921_L23_PC)
+	if (id >= RPM_VREG_ID_PM8921_L1_PC && id <= RPM_VREG_ID_PM8921_L12_PC)
 		real_id = id - RPM_VREG_ID_PM8921_L1_PC;
+	else if (id >= RPM_VREG_ID_PM8921_L14_PC
+			&& id <= RPM_VREG_ID_PM8921_L23_PC)
+		real_id = id - RPM_VREG_ID_PM8921_L14_PC
+				+ RPM_VREG_ID_PM8921_L14;
 	else if (id >= RPM_VREG_ID_PM8921_L29_PC
 			&& id <= RPM_VREG_ID_PM8921_S4_PC)
 		real_id = id - RPM_VREG_ID_PM8921_L29_PC
@@ -309,5 +323,34 @@ static struct vreg_config config = {
 
 struct vreg_config *get_config_8960(void)
 {
+	return &config;
+}
+
+struct vreg_config *get_config_8960_pm8917(void)
+{
+	int i;
+
+	/*
+	 * PM8917 regulators L24, L25, L26, L27, and L28 require CXO to be ON
+	 * while they are enabled.  These same regulators on PM8921 do not
+	 * require CXO to be ON.  Therefore, set the require_cxo flag for these
+	 * regulators only when using PM8917.
+	 *
+	 * Do not apply the workaround to L24 (VDD_MX) because it is always on
+	 * and using the TCXO workaround with it would result in additional
+	 * latency during every Krait upscaling event.
+	 */
+	for (i = 0; i < ARRAY_SIZE(vregs); i++) {
+		switch (vregs[i].id) {
+		case RPM_VREG_ID_PM8921_L25:
+		case RPM_VREG_ID_PM8921_L26:
+		case RPM_VREG_ID_PM8921_L27:
+		case RPM_VREG_ID_PM8921_L28:
+			vregs[i].requires_cxo = true;
+		default:
+			break;
+		}
+	}
+
 	return &config;
 }

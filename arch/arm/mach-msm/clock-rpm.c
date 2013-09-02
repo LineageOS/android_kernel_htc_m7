@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -12,10 +12,9 @@
  */
 
 #include <linux/err.h>
-#include <mach/clk.h>
+#include <mach/clk-provider.h>
 
 #include "rpm_resources.h"
-#include "clock.h"
 #include "clock-rpm.h"
 
 #define __clk_rpmrs_set_rate(r, value, ctx, noirq) \
@@ -54,15 +53,29 @@ static int clk_rpmrs_get_rate(struct rpm_clk *r)
 	return (rc < 0) ? rc : iv.value * r->factor;
 }
 
-#define RPM_SMD_KEY_RATE	0x007A484B
-#define RPM_SMD_KEY_ENABLE	0x62616E45
+static int clk_rpmrs_handoff(struct rpm_clk *r)
+{
+	struct msm_rpm_iv_pair iv = { .id = r->rpm_status_id, };
+	int rc = msm_rpm_get_status(&iv, 1);
+
+	if (rc < 0)
+		return rc;
+
+	if (!r->branch) {
+		r->last_set_khz = iv.value;
+		if (!r->active_only)
+			r->last_set_sleep_khz = iv.value;
+		r->c.rate = iv.value * r->factor;
+	}
+
+	return 0;
+}
 
 static int clk_rpmrs_set_rate_smd(struct rpm_clk *r, uint32_t value,
 				uint32_t context, int noirq)
 {
-	u32 rpm_key = r->branch ? RPM_SMD_KEY_ENABLE : RPM_SMD_KEY_RATE;
 	struct msm_rpm_kvp kvp = {
-		.key = rpm_key,
+		.key = r->rpm_key,
 		.data = (void *)&value,
 		.length = sizeof(value),
 	};
@@ -75,10 +88,16 @@ static int clk_rpmrs_set_rate_smd(struct rpm_clk *r, uint32_t value,
 						r->rpm_clk_id, &kvp, 1);
 }
 
+static int clk_rpmrs_handoff_smd(struct rpm_clk *r)
+{
+	return 0;
+}
+
 struct clk_rpmrs_data {
 	int (*set_rate_fn)(struct rpm_clk *r, uint32_t value,
 				uint32_t context, int noirq);
 	int (*get_rate_fn)(struct rpm_clk *r);
+	int (*handoff_fn)(struct rpm_clk *r);
 	int ctx_active_id;
 	int ctx_sleep_id;
 };
@@ -86,12 +105,14 @@ struct clk_rpmrs_data {
 struct clk_rpmrs_data clk_rpmrs_data = {
 	.set_rate_fn = clk_rpmrs_set_rate,
 	.get_rate_fn = clk_rpmrs_get_rate,
+	.handoff_fn = clk_rpmrs_handoff,
 	.ctx_active_id = MSM_RPM_CTX_SET_0,
 	.ctx_sleep_id = MSM_RPM_CTX_SET_SLEEP,
 };
 
 struct clk_rpmrs_data clk_rpmrs_data_smd = {
 	.set_rate_fn = clk_rpmrs_set_rate_smd,
+	.handoff_fn = clk_rpmrs_handoff_smd,
 	.ctx_active_id = MSM_RPM_CTX_ACTIVE_SET,
 	.ctx_sleep_id = MSM_RPM_CTX_SLEEP_SET,
 };
@@ -111,13 +132,13 @@ static int rpm_clk_enable(struct clk *clk)
 	spin_lock_irqsave(&rpm_clock_lock, flags);
 
 	this_khz = r->last_set_khz;
-	
+	/* Don't send requests to the RPM if the rate has not been set. */
 	if (this_khz == 0)
 		goto out;
 
 	this_sleep_khz = r->last_set_sleep_khz;
 
-	
+	/* Take peer clock's rate into account only if it's enabled. */
 	if (peer->enabled) {
 		peer_khz = peer->last_set_khz;
 		peer_sleep_khz = peer->last_set_sleep_khz;
@@ -137,7 +158,7 @@ static int rpm_clk_enable(struct clk *clk)
 
 	rc = clk_rpmrs_set_rate_sleep_noirq(r, value);
 	if (rc) {
-		
+		/* Undo the active set vote and restore it to peer_khz */
 		value = peer_khz;
 		rc = clk_rpmrs_set_rate_active_noirq(r, value);
 	}
@@ -164,7 +185,7 @@ static void rpm_clk_disable(struct clk *clk)
 		unsigned long peer_khz = 0, peer_sleep_khz = 0;
 		int rc;
 
-		
+		/* Take peer clock's rate into account only if it's enabled. */
 		if (peer->enabled) {
 			peer_khz = peer->last_set_khz;
 			peer_sleep_khz = peer->last_set_sleep_khz;
@@ -196,6 +217,8 @@ static int rpm_clk_set_rate(struct clk *clk, unsigned long rate)
 
 	spin_lock_irqsave(&rpm_clock_lock, flags);
 
+	/* Active-only clocks don't care what the rate is during sleep. So,
+	 * they vote for zero. */
 	if (r->active_only)
 		this_sleep_khz = 0;
 	else
@@ -206,7 +229,7 @@ static int rpm_clk_set_rate(struct clk *clk, unsigned long rate)
 		struct rpm_clk *peer = r->peer;
 		unsigned long peer_khz = 0, peer_sleep_khz = 0;
 
-		
+		/* Take peer clock's rate into account only if it's enabled. */
 		if (peer->enabled) {
 			peer_khz = peer->last_set_khz;
 			peer_sleep_khz = peer->last_set_sleep_khz;
@@ -247,7 +270,7 @@ static int rpm_clk_is_enabled(struct clk *clk)
 
 static long rpm_clk_round_rate(struct clk *clk, unsigned long rate)
 {
-	
+	/* Not supported. */
 	return rate;
 }
 
@@ -259,18 +282,17 @@ static bool rpm_clk_is_local(struct clk *clk)
 static enum handoff rpm_clk_handoff(struct clk *clk)
 {
 	struct rpm_clk *r = to_rpm_clk(clk);
-	struct msm_rpm_iv_pair iv = { r->rpm_status_id };
 	int rc;
 
-	rc  = msm_rpm_get_status(&iv, 1);
+	/*
+	 * Querying an RPM clock's status will return 0 unless the clock's
+	 * rate has previously been set through the RPM. When handing off,
+	 * assume these clocks are enabled (unless the RPM call fails) so
+	 * child clocks of these RPM clocks can still be handed off.
+	 */
+	rc  = r->rpmrs_data->handoff_fn(r);
 	if (rc < 0)
 		return HANDOFF_DISABLED_CLK;
-
-	if (!r->branch) {
-		r->last_set_khz = iv.value;
-		r->last_set_sleep_khz = iv.value;
-		clk->rate = iv.value * r->factor;
-	}
 
 	return HANDOFF_ENABLED_CLK;
 }

@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -43,8 +43,6 @@ enum {
 enum {
 	MSM_RPMRS_MASK_RPM_CTL_CPU_HALT = 1,
 	MSM_RPMRS_MASK_RPM_CTL_MULTI_TIER = 2,
-	MSM_RPMRS_MASK_RPM_CTL_SINGLE_USE_SLEEP_SETS  = 4,
-	MSM_RPMRS_MASK_RPM_CTL_VDDCX_SCALING = 8,
 };
 
 enum {
@@ -142,7 +140,6 @@ static inline int msm_rpmrs_clear_nosleep(
 
 void msm_rpmrs_show_resources(void);
 int msm_rpmrs_levels_init(struct msm_rpmrs_platform_data *data);
-void msm_rpmrs_lpm_init(uint32_t pxo, uint32_t l2_cache, uint32_t vdd_mem, uint32_t vdd_dig);
 
 #else
 
@@ -212,6 +209,6 @@ static inline int msm_rpmrs_levels_init(struct msm_rpmrs_platform_data *data)
 	return -ENODEV;
 }
 
-#endif 
+#endif /* CONFIG_MSM_RPM */
 
-#endif 
+#endif /* __ARCH_ARM_MACH_MSM_RPM_RESOURCES_H */

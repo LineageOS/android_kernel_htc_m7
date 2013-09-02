@@ -220,13 +220,12 @@ void htc_idle_stat_show(u32 total_time)
 			}
 		}
 	}
-	htc_xo_vddmin_stat_show();
-	msm_rpm_dump_stat();
+	//htc_xo_vddmin_stat_show();
+	//msm_rpm_dump_stat();
 }
 
 #if 0
 static DECLARE_BITMAP(msm_pm_clocks_no_tcxo_shutdown, MAX_NR_CLKS);
-#endif
 u32 count_xo_block_clk_array[MAX_NR_CLKS] = {0};
 void htc_xo_block_clks_count_clear(void)
 {
@@ -234,7 +233,6 @@ void htc_xo_block_clks_count_clear(void)
 }
 void htc_xo_block_clks_count(void)
 {
-#if 0
 	int ret, i;
 	ret = msm_clock_require_tcxo(msm_pm_clocks_no_tcxo_shutdown, MAX_NR_CLKS);
 	if (ret) {
@@ -245,12 +243,10 @@ void htc_xo_block_clks_count(void)
 				count_xo_block_clk_array[i]++;
 		}
 	}
-#endif
 }
 
 void htc_xo_block_clks_count_show(void)
 {
-#if 0
 	int ret, i;
 	ret = msm_clock_require_tcxo(msm_pm_clocks_no_tcxo_shutdown, MAX_NR_CLKS);
 	if (ret) {
@@ -263,7 +259,6 @@ void htc_xo_block_clks_count_show(void)
 			}
 		}
 	}
-#endif
 }
 
 void htc_xo_vddmin_stat_show(void)
@@ -285,6 +280,7 @@ void htc_xo_vddmin_stat_show(void)
 		}
 	}
 }
+#endif
 
 void htc_print_vddmin_gpio_status(void)
 {
@@ -308,8 +304,8 @@ void htc_pm_monitor_work(struct work_struct *work)
 		tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 
 	htc_show_interrupts();
-	htc_xo_block_clks_count_show();
-	htc_xo_block_clks_count_clear();
+	//htc_xo_block_clks_count_show();
+	//htc_xo_block_clks_count_clear();
 	msm_xo_print_voters();
 	htc_idle_stat_show(msm_htc_util_delay_time);
 	htc_idle_stat_clear();

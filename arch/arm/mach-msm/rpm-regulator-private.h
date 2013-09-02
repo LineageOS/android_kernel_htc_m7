@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -18,6 +18,7 @@
 #include <mach/rpm.h>
 #include <mach/rpm-regulator.h>
 
+/* Possible RPM regulator request types */
 enum rpm_regulator_type {
 	RPM_REGULATOR_TYPE_LDO,
 	RPM_REGULATOR_TYPE_SMPS,
@@ -33,21 +34,22 @@ struct request_member {
 	int			shift;
 };
 
+/* Possible RPM regulator request members */
 struct rpm_vreg_parts {
-	struct request_member	mV;	
-	struct request_member	uV;	
-	struct request_member	ip;		
-	struct request_member	pd;		
-	struct request_member	ia;		
-	struct request_member	fm;		
-	struct request_member	pm;		
-	struct request_member	pc;		
-	struct request_member	pf;		
-	struct request_member	enable_state;	
-	struct request_member	comp_mode;	
-	struct request_member	freq;		
-	struct request_member	freq_clk_src;	
-	struct request_member	hpm;		
+	struct request_member	mV;	/* voltage: used if voltage is in mV */
+	struct request_member	uV;	/* voltage: used if voltage is in uV */
+	struct request_member	ip;		/* peak current in mA */
+	struct request_member	pd;		/* pull down enable */
+	struct request_member	ia;		/* average current in mA */
+	struct request_member	fm;		/* force mode */
+	struct request_member	pm;		/* power mode */
+	struct request_member	pc;		/* pin control */
+	struct request_member	pf;		/* pin function */
+	struct request_member	enable_state;	/* NCP and switch */
+	struct request_member	comp_mode;	/* NCP */
+	struct request_member	freq;		/* frequency: NCP and SMPS */
+	struct request_member	freq_clk_src;	/* clock source: SMPS */
+	struct request_member	hpm;		/* switch: control OCP and SS */
 	int			request_len;
 };
 
@@ -116,7 +118,7 @@ struct vreg_config {
 	int				(*is_real_id) (int vreg_id);
 	int				(*pc_id_to_real_id) (int vreg_id);
 
-	
+	/* Legacy options to be used with MSM8660 */
 	int				use_legacy_optimum_mode;
 	int				ia_follows_ip;
 };
@@ -156,8 +158,13 @@ static inline struct vreg_config *get_config_8660(void)
 #if defined(CONFIG_MSM_RPM_REGULATOR) && \
 	(defined(CONFIG_ARCH_MSM8960) || defined(CONFIG_ARCH_APQ8064))
 struct vreg_config *get_config_8960(void);
+struct vreg_config *get_config_8960_pm8917(void);
 #else
 static inline struct vreg_config *get_config_8960(void)
+{
+	return NULL;
+}
+static inline struct vreg_config *get_config_8960_pm8917(void)
 {
 	return NULL;
 }
@@ -174,8 +181,13 @@ static inline struct vreg_config *get_config_9615(void)
 
 #if defined(CONFIG_MSM_RPM_REGULATOR) && defined(CONFIG_ARCH_MSM8930)
 struct vreg_config *get_config_8930(void);
+struct vreg_config *get_config_8930_pm8917(void);
 #else
 static inline struct vreg_config *get_config_8930(void)
+{
+	return NULL;
+}
+static inline struct vreg_config *get_config_8930_pm8917(void)
 {
 	return NULL;
 }

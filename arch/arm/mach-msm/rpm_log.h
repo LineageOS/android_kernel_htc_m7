@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -31,4 +31,4 @@ struct msm_rpm_log_platform_data {
 	void __iomem *reg_base;
 };
 
-#endif 
+#endif /* __ARCH_ARM_MACH_MSM_RPM_LOG_H */

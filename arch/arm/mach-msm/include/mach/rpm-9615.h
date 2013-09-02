@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -13,6 +13,7 @@
 #ifndef __ARCH_ARM_MACH_MSM_RPM_9615_H
 #define __ARCH_ARM_MACH_MSM_RPM_9615_H
 
+/* RPM control message RAM enums */
 enum {
 	MSM_RPM_9615_CTRL_VERSION_MAJOR,
 	MSM_RPM_9615_CTRL_VERSION_MINOR,
@@ -76,6 +77,7 @@ enum {
 	MSM_RPM_9615_SEL_LAST = MSM_RPM_9615_SEL_VOLTAGE_CORNER,
 };
 
+/* RPM resource (4 byte) word ID enum */
 enum {
 	MSM_RPM_9615_ID_NOTIFICATION_CONFIGURED_0		= 0,
 	MSM_RPM_9615_ID_NOTIFICATION_CONFIGURED_3 =
@@ -94,7 +96,7 @@ enum {
 
 	MSM_RPM_9615_ID_RPM_CTL					= 18,
 
-	
+	/* TRIGGER_CLEAR/SET deprecated in these 24 RESERVED bytes */
 	MSM_RPM_9615_ID_RESERVED_0				= 19,
 	MSM_RPM_9615_ID_RESERVED_5 =
 		MSM_RPM_9615_ID_RESERVED_0 + 5,
@@ -166,6 +168,7 @@ enum {
 	MSM_RPM_9615_ID_LAST = MSM_RPM_9615_ID_VOLTAGE_CORNER,
 };
 
+/* RPM status ID enum */
 enum {
 	MSM_RPM_9615_STATUS_ID_VERSION_MAJOR			= 0,
 	MSM_RPM_9615_STATUS_ID_VERSION_MINOR			= 1,
@@ -235,4 +238,4 @@ enum {
 	MSM_RPM_9615_STATUS_ID_LAST = MSM_RPM_9615_STATUS_ID_VOLTAGE_CORNER,
 };
 
-#endif 
+#endif /* __ARCH_ARM_MACH_MSM_RPM_9615_H */

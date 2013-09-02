@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -18,11 +18,11 @@
 #include <linux/list.h>
 #include <linux/semaphore.h>
 
-#include <mach/rpm-8064.h>
 #include <mach/rpm-8660.h>
 #include <mach/rpm-9615.h>
 #include <mach/rpm-8960.h>
 #include <mach/rpm-8930.h>
+#include <mach/rpm-8064.h>
 
 #define SEL_MASK_SIZE (5)
 
@@ -31,7 +31,6 @@ enum {
 	MSM_RPM_PAGE_CTRL,
 	MSM_RPM_PAGE_REQ,
 	MSM_RPM_PAGE_ACK,
-	MSM_RPM_PAGE_STAT,
 	MSM_RPM_PAGE_COUNT
 };
 
@@ -44,6 +43,7 @@ enum {
 	MSM_RPM_CTX_REJECTED = 31,
 };
 
+/* RPM control message RAM enums */
 enum {
 	MSM_RPM_CTRL_VERSION_MAJOR,
 	MSM_RPM_CTRL_VERSION_MINOR,
@@ -76,7 +76,7 @@ enum {
 
 	MSM_RPM_ID_RPM_CTL,
 
-	
+	/* TRIGGER_CLEAR/SET deprecated in these 24 RESERVED bytes */
 	MSM_RPM_ID_RESERVED_0,
 	MSM_RPM_ID_RESERVED_5 =
 		MSM_RPM_ID_RESERVED_0 + 5,
@@ -228,7 +228,7 @@ enum {
 	MSM_RPM_ID_DDR_DMM_1,
 	MSM_RPM_ID_QDSS_CLK,
 
-	
+	/* 8660 specific ids */
 	MSM_RPM_ID_TRIGGER_SET_FROM,
 	MSM_RPM_ID_TRIGGER_SET_TO,
 	MSM_RPM_ID_TRIGGER_SET_TRIGGER,
@@ -240,7 +240,7 @@ enum {
 	MSM_RPM_ID_SMI_CLK,
 	MSM_RPM_ID_APPS_L2_CACHE_CTL,
 
-	
+	/* pmic 8901 */
 	MSM_RPM_ID_SMPS0B_0,
 	MSM_RPM_ID_SMPS0B_1,
 	MSM_RPM_ID_SMPS1B_0,
@@ -271,7 +271,7 @@ enum {
 	MSM_RPM_ID_LVS3B,
 	MSM_RPM_ID_MVS,
 
-	
+	/* pmic 8058 */
 	MSM_RPM_ID_SMPS0_0,
 	MSM_RPM_ID_SMPS0_1,
 	MSM_RPM_ID_SMPS1_0,
@@ -337,7 +337,7 @@ enum {
 	MSM_RPM_ID_LVS0,
 	MSM_RPM_ID_LVS1,
 
-	
+	/* 9615 specific */
 	MSM_RPM_ID_PM8018_S1_0,
 	MSM_RPM_ID_PM8018_S1_1,
 	MSM_RPM_ID_PM8018_S2_0,
@@ -378,7 +378,7 @@ enum {
 	MSM_RPM_ID_PM8018_L14_1,
 	MSM_RPM_ID_PM8018_LVS1,
 
-	
+	/* 8930 specific */
 	MSM_RPM_ID_PM8038_S1_0,
 	MSM_RPM_ID_PM8038_S1_1,
 	MSM_RPM_ID_PM8038_S2_0,
@@ -451,9 +451,103 @@ enum {
 	MSM_RPM_ID_PM8038_CLK2_1,
 	MSM_RPM_ID_PM8038_LVS1,
 	MSM_RPM_ID_PM8038_LVS2,
+
+	/* PM8917 specific */
+	MSM_RPM_ID_PM8917_S1_0,
+	MSM_RPM_ID_PM8917_S1_1,
+	MSM_RPM_ID_PM8917_S2_0,
+	MSM_RPM_ID_PM8917_S2_1,
+	MSM_RPM_ID_PM8917_S3_0,
+	MSM_RPM_ID_PM8917_S3_1,
+	MSM_RPM_ID_PM8917_S4_0,
+	MSM_RPM_ID_PM8917_S4_1,
+	MSM_RPM_ID_PM8917_S5_0,
+	MSM_RPM_ID_PM8917_S5_1,
+	MSM_RPM_ID_PM8917_S6_0,
+	MSM_RPM_ID_PM8917_S6_1,
+	MSM_RPM_ID_PM8917_S7_0,
+	MSM_RPM_ID_PM8917_S7_1,
+	MSM_RPM_ID_PM8917_S8_0,
+	MSM_RPM_ID_PM8917_S8_1,
+	MSM_RPM_ID_PM8917_L1_0,
+	MSM_RPM_ID_PM8917_L1_1,
+	MSM_RPM_ID_PM8917_L2_0,
+	MSM_RPM_ID_PM8917_L2_1,
+	MSM_RPM_ID_PM8917_L3_0,
+	MSM_RPM_ID_PM8917_L3_1,
+	MSM_RPM_ID_PM8917_L4_0,
+	MSM_RPM_ID_PM8917_L4_1,
+	MSM_RPM_ID_PM8917_L5_0,
+	MSM_RPM_ID_PM8917_L5_1,
+	MSM_RPM_ID_PM8917_L6_0,
+	MSM_RPM_ID_PM8917_L6_1,
+	MSM_RPM_ID_PM8917_L7_0,
+	MSM_RPM_ID_PM8917_L7_1,
+	MSM_RPM_ID_PM8917_L8_0,
+	MSM_RPM_ID_PM8917_L8_1,
+	MSM_RPM_ID_PM8917_L9_0,
+	MSM_RPM_ID_PM8917_L9_1,
+	MSM_RPM_ID_PM8917_L10_0,
+	MSM_RPM_ID_PM8917_L10_1,
+	MSM_RPM_ID_PM8917_L11_0,
+	MSM_RPM_ID_PM8917_L11_1,
+	MSM_RPM_ID_PM8917_L12_0,
+	MSM_RPM_ID_PM8917_L12_1,
+	MSM_RPM_ID_PM8917_L14_0,
+	MSM_RPM_ID_PM8917_L14_1,
+	MSM_RPM_ID_PM8917_L15_0,
+	MSM_RPM_ID_PM8917_L15_1,
+	MSM_RPM_ID_PM8917_L16_0,
+	MSM_RPM_ID_PM8917_L16_1,
+	MSM_RPM_ID_PM8917_L17_0,
+	MSM_RPM_ID_PM8917_L17_1,
+	MSM_RPM_ID_PM8917_L18_0,
+	MSM_RPM_ID_PM8917_L18_1,
+	MSM_RPM_ID_PM8917_L21_0,
+	MSM_RPM_ID_PM8917_L21_1,
+	MSM_RPM_ID_PM8917_L22_0,
+	MSM_RPM_ID_PM8917_L22_1,
+	MSM_RPM_ID_PM8917_L23_0,
+	MSM_RPM_ID_PM8917_L23_1,
+	MSM_RPM_ID_PM8917_L24_0,
+	MSM_RPM_ID_PM8917_L24_1,
+	MSM_RPM_ID_PM8917_L25_0,
+	MSM_RPM_ID_PM8917_L25_1,
+	MSM_RPM_ID_PM8917_L26_0,
+	MSM_RPM_ID_PM8917_L26_1,
+	MSM_RPM_ID_PM8917_L27_0,
+	MSM_RPM_ID_PM8917_L27_1,
+	MSM_RPM_ID_PM8917_L28_0,
+	MSM_RPM_ID_PM8917_L28_1,
+	MSM_RPM_ID_PM8917_L29_0,
+	MSM_RPM_ID_PM8917_L29_1,
+	MSM_RPM_ID_PM8917_L30_0,
+	MSM_RPM_ID_PM8917_L30_1,
+	MSM_RPM_ID_PM8917_L31_0,
+	MSM_RPM_ID_PM8917_L31_1,
+	MSM_RPM_ID_PM8917_L32_0,
+	MSM_RPM_ID_PM8917_L32_1,
+	MSM_RPM_ID_PM8917_L33_0,
+	MSM_RPM_ID_PM8917_L33_1,
+	MSM_RPM_ID_PM8917_L34_0,
+	MSM_RPM_ID_PM8917_L34_1,
+	MSM_RPM_ID_PM8917_L35_0,
+	MSM_RPM_ID_PM8917_L35_1,
+	MSM_RPM_ID_PM8917_L36_0,
+	MSM_RPM_ID_PM8917_L36_1,
+	MSM_RPM_ID_PM8917_CLK1_0,
+	MSM_RPM_ID_PM8917_CLK1_1,
+	MSM_RPM_ID_PM8917_CLK2_0,
+	MSM_RPM_ID_PM8917_CLK2_1,
+	MSM_RPM_ID_PM8917_LVS1,
+	MSM_RPM_ID_PM8917_LVS3,
+	MSM_RPM_ID_PM8917_LVS4,
+	MSM_RPM_ID_PM8917_LVS5,
+	MSM_RPM_ID_PM8917_LVS6,
+	MSM_RPM_ID_PM8917_LVS7,
 	MSM_RPM_ID_VOLTAGE_CORNER,
 
-	
+	/* 8064 specific */
 	MSM_RPM_ID_PM8821_S1_0,
 	MSM_RPM_ID_PM8821_S1_1,
 	MSM_RPM_ID_PM8821_S2_0,
@@ -605,7 +699,30 @@ enum {
 	MSM_RPM_STATUS_ID_EBI1_CH1_RANGE,
 	MSM_RPM_STATUS_ID_QDSS_CLK,
 
-	
+	/* 8930 aliases to simplify device mapping */
+	MSM_RPM_STATUS_ID_PM8038_NCP_0 = MSM_RPM_STATUS_ID_NCP_0,
+	MSM_RPM_STATUS_ID_PM8038_NCP_1 = MSM_RPM_STATUS_ID_NCP_1,
+	MSM_RPM_STATUS_ID_PM8038_CXO_BUFFERS
+		= MSM_RPM_STATUS_ID_CXO_BUFFERS,
+	MSM_RPM_STATUS_ID_PM8038_USB_OTG_SWITCH
+		= MSM_RPM_STATUS_ID_USB_OTG_SWITCH,
+	MSM_RPM_STATUS_ID_PM8038_HDMI_SWITCH
+		= MSM_RPM_STATUS_ID_HDMI_SWITCH,
+	MSM_RPM_STATUS_ID_PM8038_QDSS_CLK
+		= MSM_RPM_STATUS_ID_QDSS_CLK,
+
+	MSM_RPM_STATUS_ID_PM8917_NCP_0 = MSM_RPM_STATUS_ID_NCP_0,
+		MSM_RPM_STATUS_ID_PM8917_NCP_1 = MSM_RPM_STATUS_ID_NCP_1,
+	MSM_RPM_STATUS_ID_PM8917_CXO_BUFFERS
+		= MSM_RPM_STATUS_ID_CXO_BUFFERS,
+	MSM_RPM_STATUS_ID_PM8917_USB_OTG_SWITCH
+		= MSM_RPM_STATUS_ID_USB_OTG_SWITCH,
+	MSM_RPM_STATUS_ID_PM8917_HDMI_SWITCH
+		= MSM_RPM_STATUS_ID_HDMI_SWITCH,
+	MSM_RPM_STATUS_ID_PM8917_QDSS_CLK
+		= MSM_RPM_STATUS_ID_QDSS_CLK,
+
+	/* 8660 Specific */
 	MSM_RPM_STATUS_ID_PLL_4,
 	MSM_RPM_STATUS_ID_SMI_CLK,
 	MSM_RPM_STATUS_ID_APPS_L2_CACHE_CTL,
@@ -703,7 +820,7 @@ enum {
 	MSM_RPM_STATUS_ID_LVS0,
 	MSM_RPM_STATUS_ID_LVS1,
 
-	
+	/* 9615 Specific */
 	MSM_RPM_STATUS_ID_PM8018_S1_0,
 	MSM_RPM_STATUS_ID_PM8018_S1_1,
 	MSM_RPM_STATUS_ID_PM8018_S2_0,
@@ -744,7 +861,7 @@ enum {
 	MSM_RPM_STATUS_ID_PM8018_L14_1,
 	MSM_RPM_STATUS_ID_PM8018_LVS1,
 
-	
+	/* 8930 specific */
 	MSM_RPM_STATUS_ID_PM8038_S1_0,
 	MSM_RPM_STATUS_ID_PM8038_S1_1,
 	MSM_RPM_STATUS_ID_PM8038_S2_0,
@@ -817,9 +934,107 @@ enum {
 	MSM_RPM_STATUS_ID_PM8038_CLK2_1,
 	MSM_RPM_STATUS_ID_PM8038_LVS1,
 	MSM_RPM_STATUS_ID_PM8038_LVS2,
-	MSM_RPM_STATUS_ID_VOLTAGE_CORNER,
 
-	
+	/* PMIC 8917 */
+	MSM_RPM_STATUS_ID_PM8917_S1_0,
+	MSM_RPM_STATUS_ID_PM8917_S1_1,
+	MSM_RPM_STATUS_ID_PM8917_S2_0,
+	MSM_RPM_STATUS_ID_PM8917_S2_1,
+	MSM_RPM_STATUS_ID_PM8917_S3_0,
+	MSM_RPM_STATUS_ID_PM8917_S3_1,
+	MSM_RPM_STATUS_ID_PM8917_S4_0,
+	MSM_RPM_STATUS_ID_PM8917_S4_1,
+	MSM_RPM_STATUS_ID_PM8917_S5_0,
+	MSM_RPM_STATUS_ID_PM8917_S5_1,
+	MSM_RPM_STATUS_ID_PM8917_S6_0,
+	MSM_RPM_STATUS_ID_PM8917_S6_1,
+	MSM_RPM_STATUS_ID_PM8917_S7_0,
+	MSM_RPM_STATUS_ID_PM8917_S7_1,
+	MSM_RPM_STATUS_ID_PM8917_S8_0,
+	MSM_RPM_STATUS_ID_PM8917_S8_1,
+	MSM_RPM_STATUS_ID_PM8917_L1_0,
+	MSM_RPM_STATUS_ID_PM8917_L1_1,
+	MSM_RPM_STATUS_ID_PM8917_L2_0,
+	MSM_RPM_STATUS_ID_PM8917_L2_1,
+	MSM_RPM_STATUS_ID_PM8917_L3_0,
+	MSM_RPM_STATUS_ID_PM8917_L3_1,
+	MSM_RPM_STATUS_ID_PM8917_L4_0,
+	MSM_RPM_STATUS_ID_PM8917_L4_1,
+	MSM_RPM_STATUS_ID_PM8917_L5_0,
+	MSM_RPM_STATUS_ID_PM8917_L5_1,
+	MSM_RPM_STATUS_ID_PM8917_L6_0,
+	MSM_RPM_STATUS_ID_PM8917_L6_1,
+	MSM_RPM_STATUS_ID_PM8917_L7_0,
+	MSM_RPM_STATUS_ID_PM8917_L7_1,
+	MSM_RPM_STATUS_ID_PM8917_L8_0,
+	MSM_RPM_STATUS_ID_PM8917_L8_1,
+	MSM_RPM_STATUS_ID_PM8917_L9_0,
+	MSM_RPM_STATUS_ID_PM8917_L9_1,
+	MSM_RPM_STATUS_ID_PM8917_L10_0,
+	MSM_RPM_STATUS_ID_PM8917_L10_1,
+	MSM_RPM_STATUS_ID_PM8917_L11_0,
+	MSM_RPM_STATUS_ID_PM8917_L11_1,
+	MSM_RPM_STATUS_ID_PM8917_L12_0,
+	MSM_RPM_STATUS_ID_PM8917_L12_1,
+	MSM_RPM_STATUS_ID_PM8917_L14_0,
+	MSM_RPM_STATUS_ID_PM8917_L14_1,
+	MSM_RPM_STATUS_ID_PM8917_L15_0,
+	MSM_RPM_STATUS_ID_PM8917_L15_1,
+	MSM_RPM_STATUS_ID_PM8917_L16_0,
+	MSM_RPM_STATUS_ID_PM8917_L16_1,
+	MSM_RPM_STATUS_ID_PM8917_L17_0,
+	MSM_RPM_STATUS_ID_PM8917_L17_1,
+	MSM_RPM_STATUS_ID_PM8917_L18_0,
+	MSM_RPM_STATUS_ID_PM8917_L18_1,
+	MSM_RPM_STATUS_ID_PM8917_L21_0,
+	MSM_RPM_STATUS_ID_PM8917_L21_1,
+	MSM_RPM_STATUS_ID_PM8917_L22_0,
+	MSM_RPM_STATUS_ID_PM8917_L22_1,
+	MSM_RPM_STATUS_ID_PM8917_L23_0,
+	MSM_RPM_STATUS_ID_PM8917_L23_1,
+	MSM_RPM_STATUS_ID_PM8917_L24_0,
+	MSM_RPM_STATUS_ID_PM8917_L24_1,
+	MSM_RPM_STATUS_ID_PM8917_L25_0,
+	MSM_RPM_STATUS_ID_PM8917_L25_1,
+	MSM_RPM_STATUS_ID_PM8917_L26_0,
+	MSM_RPM_STATUS_ID_PM8917_L26_1,
+	MSM_RPM_STATUS_ID_PM8917_L27_0,
+	MSM_RPM_STATUS_ID_PM8917_L27_1,
+	MSM_RPM_STATUS_ID_PM8917_L28_0,
+	MSM_RPM_STATUS_ID_PM8917_L28_1,
+	MSM_RPM_STATUS_ID_PM8917_L29_0,
+	MSM_RPM_STATUS_ID_PM8917_L29_1,
+	MSM_RPM_STATUS_ID_PM8917_L30_0,
+	MSM_RPM_STATUS_ID_PM8917_L30_1,
+	MSM_RPM_STATUS_ID_PM8917_L31_0,
+	MSM_RPM_STATUS_ID_PM8917_L31_1,
+	MSM_RPM_STATUS_ID_PM8917_L32_0,
+	MSM_RPM_STATUS_ID_PM8917_L32_1,
+	MSM_RPM_STATUS_ID_PM8917_L33_0,
+	MSM_RPM_STATUS_ID_PM8917_L33_1,
+	MSM_RPM_STATUS_ID_PM8917_L34_0,
+	MSM_RPM_STATUS_ID_PM8917_L34_1,
+	MSM_RPM_STATUS_ID_PM8917_L35_0,
+	MSM_RPM_STATUS_ID_PM8917_L35_1,
+	MSM_RPM_STATUS_ID_PM8917_L36_0,
+	MSM_RPM_STATUS_ID_PM8917_L36_1,
+	MSM_RPM_STATUS_ID_PM8917_CLK1_0,
+	MSM_RPM_STATUS_ID_PM8917_CLK1_1,
+	MSM_RPM_STATUS_ID_PM8917_CLK2_0,
+	MSM_RPM_STATUS_ID_PM8917_CLK2_1,
+	MSM_RPM_STATUS_ID_PM8917_LVS1,
+	MSM_RPM_STATUS_ID_PM8917_LVS3,
+	MSM_RPM_STATUS_ID_PM8917_LVS4,
+	MSM_RPM_STATUS_ID_PM8917_LVS5,
+	MSM_RPM_STATUS_ID_PM8917_LVS6,
+	MSM_RPM_STATUS_ID_PM8917_LVS7,
+	MSM_RPM_STATUS_ID_VOLTAGE_CORNER,
+	MSM_RPM_STATUS_ID_PM8917_VOLTAGE_CORNER
+		= MSM_RPM_STATUS_ID_VOLTAGE_CORNER,
+	MSM_RPM_STATUS_ID_PM8038_VOLTAGE_CORNER
+		= MSM_RPM_STATUS_ID_VOLTAGE_CORNER,
+
+	/* 8064 specific */
 	MSM_RPM_STATUS_ID_PM8821_S1_0,
 	MSM_RPM_STATUS_ID_PM8821_S1_1,
 	MSM_RPM_STATUS_ID_PM8821_S2_0,
@@ -852,9 +1067,9 @@ struct msm_rpm_iv_pair {
 };
 
 struct msm_rpm_notification {
-	struct list_head list;  
+	struct list_head list;  /* reserved for RPM use */
 	struct semaphore sem;
-	uint32_t sel_masks[SEL_MASK_SIZE];  
+	uint32_t sel_masks[SEL_MASK_SIZE];  /* reserved for RPM use */
 };
 
 struct msm_rpm_map_data {
@@ -869,6 +1084,14 @@ struct msm_rpm_map_data {
 		.id = MSM_RPM_##t##_ID_##i, \
 		.sel = MSM_RPM_##t##_SEL_##s, \
 		.count = c, \
+	}
+
+#define MSM_RPM_MAP_PMIC(_target, _pmic, _id, _select, _count) \
+	[MSM_RPM_ID_##_id] = \
+	{\
+		.id = MSM_RPM_##_target##_ID_PM##_pmic##_##_id, \
+		.sel = MSM_RPM_##_target##_SEL_##_select, \
+		.count = _count, \
 	}
 
 #define MSM_RPM_STATUS_ID_VALID BIT(31)
@@ -899,6 +1122,7 @@ extern struct msm_rpm_platform_data msm8660_rpm_data;
 extern struct msm_rpm_platform_data msm8960_rpm_data;
 extern struct msm_rpm_platform_data msm9615_rpm_data;
 extern struct msm_rpm_platform_data msm8930_rpm_data;
+extern struct msm_rpm_platform_data msm8930_rpm_data_pm8917;
 extern struct msm_rpm_platform_data apq8064_rpm_data;
 
 #if defined(CONFIG_MSM_RPM)
@@ -941,14 +1165,7 @@ int msm_rpm_register_notification(struct msm_rpm_notification *n,
 	struct msm_rpm_iv_pair *req, int count);
 int msm_rpm_unregister_notification(struct msm_rpm_notification *n);
 int msm_rpm_init(struct msm_rpm_platform_data *data);
-void msm_rpm_dump_stat(void);
-void msm_rpm_print_sleep_tick(void);
-uint64_t msm_rpm_get_xo_time(void);
-uint64_t msm_rpm_get_vdd_time(void);
-void msm_rpm_set_suspend_flag(bool app_from_suspend);
-#ifdef CONFIG_ARCH_MSM8X60
-void msm_rpm_lpm_init(uint32_t *lpm_setting, uint32_t num);
-#endif
+
 #else
 
 static inline int msm_rpm_local_request_is_outstanding(void)
@@ -1013,118 +1230,6 @@ static inline int msm_rpm_init(struct msm_rpm_platform_data *data)
 	return -ENODEV;
 }
 
-void msm_rpm_set_suspend_flag(bool app_from_suspend) { };
+#endif /* CONFIG_RPM */
 
-#ifdef CONFIG_ARCH_MSM8X60
-void msm_rpm_lpm_init(uint32_t *lpm_setting, uint32_t num) { };
-#endif
-
-#endif 
-
-#define RPM_DEBUG_RAM_DEBUG		0x1
-#define RPM_DEBUG_RAM_DUMP		0x2
-#define RPM_DEBUG_APP_FROM_SUSPEND	0x4
-#define RPM_DEBUG_POWER_MEASUREMENT	0x8
-#define RPM_DEBUG_DISABLE_WATCHDOG	0x10
-
-typedef enum {
-  STAT_COUNT = 0,
-  STAT_ACCUM_TIME_SCLK = 1,
-  STAT_TYPE_FORCE_ENUM_SIZE = 0x7fffffff,
-} stat_type;
-
-typedef struct {
-  char     *name;
-  stat_type type;
-  uint32_t    value;
-} rpm_stat;
-
-typedef enum {
-  RPM_STAT_XO_SHUTDOWN_COUNT = 0,
-  RPM_STAT_XO_SHUTDOWN_TIME  = 1,
-  RPM_STAT_VDD_MIN_COUNT = 2,
-  RPM_STAT_VDD_MIN_TIME = 3,
-  RPM_MAX_STATS,
-  RPM_HTC_REGION = 63,
-#ifdef CONFIG_ARCH_MSM8X60
-  RPM_LPM_PM8058 = 125,
-  RPM_LPM_PM8901 = 126,
-#endif
-} stat_assignments;
-
-typedef enum {
-  RPM_MASTER_0 = 0,
-  RPM_MASTER_1,
-  RPM_MASTER_2,
-#ifndef CONFIG_ARCH_MSM8X60
-  RPM_MASTER_3,
-  RPM_MASTER_4,
-#endif
-  RPM_MASTER_COUNT,
-} rpm_master_type;
-
-#ifdef CONFIG_ARCH_MSM8X60
-
-typedef struct {
-  uint32_t timestamp;
-} stat_wakeup_info;
-
-typedef struct {
-  uint32_t timestamp;
-  uint32_t cxo:1;
-  uint32_t pxo:1;
-  uint32_t vdd_mem:12;
-  uint32_t vdd_dig:12;
-  uint32_t reversed:6;
-} stat_sleep_info;
-
-typedef struct {
-  uint32_t num_stats;
-  rpm_stat  stats[RPM_MAX_STATS];
-  uint32_t reversed1[62 - ((sizeof(rpm_stat)/sizeof(uint32_t)) * RPM_MAX_STATS)];
-#ifdef CONFIG_ARCH_MSM8X60_LTE
-  uint32_t reversed2[35];
-  htc_sleep_info_ex sleep_info_ex[RPM_MASTER_COUNT];
-#else
-  uint32_t reversed2[44];
-#endif
-  uint32_t app_from_suspend;
-  stat_wakeup_info wake_info[RPM_MASTER_COUNT];
-  stat_sleep_info sleep_info[RPM_MASTER_COUNT];
-  uint32_t mpm_trigger[RPM_MASTER_COUNT][2];
-  uint32_t mpm_int_status[2];
-  uint32_t lpm_pm8058;
-  uint32_t lpm_pm8901;
-} stats_blob;
-
-#else
-typedef struct {
-  uint32_t count;
-  uint32_t sleep_timestamp;
-  uint32_t total_duration;
-  uint32_t stats[3];
-} stat_sleep_info;
-
-typedef struct {
-  uint32_t num_stats;
-  rpm_stat stats[RPM_MAX_STATS];
-  uint32_t reversed1[62 - ((sizeof(rpm_stat)/sizeof(uint32_t)) * RPM_MAX_STATS)];
-#ifdef CONFIG_APQ8064_ONLY 
-  uint32_t reversed2[27];
-  uint32_t core0_shutdown_time;
-  uint32_t core0_bringup_time;
-  uint32_t vdd_min_enter_time;
-  uint32_t vdd_min_exit_time;
-  uint32_t sw_done_enter_time;
-  uint32_t sw_done_exit_time;
-#else
-  uint32_t reversed2[33];
-#endif
-  uint32_t rpm_debug_mode;
-  stat_sleep_info sleep_info[RPM_MASTER_COUNT];
-} stats_blob;
-#endif
-
-int htc_get_xo_vdd_min_info(uint32_t *xo_count, uint64_t *xo_time, uint32_t *vddmin_count, uint64_t *vddmin_time);
-
-#endif 
+#endif /* __ARCH_ARM_MACH_MSM_RPM_H */

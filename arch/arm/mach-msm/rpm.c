@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -31,8 +31,10 @@
 #include <asm/hardware/gic.h>
 #include <mach/msm_iomap.h>
 #include <mach/rpm.h>
-#include <mach/board_htc.h>
 
+/******************************************************************************
+ * Data type and structure definitions
+ *****************************************************************************/
 
 struct msm_rpm_request {
 	struct msm_rpm_iv_pair *req;
@@ -52,8 +54,6 @@ struct msm_rpm_notif_config {
 static uint32_t msm_rpm_sel_mask_size;
 static struct msm_rpm_platform_data msm_rpm_data;
 
-static stats_blob *msm_rpm_stat_data;
-
 static DEFINE_MUTEX(msm_rpm_mutex);
 static DEFINE_SPINLOCK(msm_rpm_lock);
 static DEFINE_SPINLOCK(msm_rpm_irq_lock);
@@ -65,6 +65,9 @@ static struct msm_rpm_request msm_rpm_request_poll_mode;
 static LIST_HEAD(msm_rpm_notifications);
 static struct msm_rpm_notif_config msm_rpm_notif_cfgs[MSM_RPM_CTX_SET_COUNT];
 static bool msm_rpm_init_notif_done;
+/******************************************************************************
+ * Internal functions
+ *****************************************************************************/
 
 static inline unsigned int target_enum(unsigned int id)
 {
@@ -129,6 +132,13 @@ static inline uint32_t msm_rpm_map_id_to_sel(uint32_t id)
 		msm_rpm_data.target_id[id].sel;
 }
 
+/*
+ * Note: the function does not clear the masks before filling them.
+ *
+ * Return value:
+ *   0: success
+ *   -EINVAL: invalid id in <req> array
+ */
 static int msm_rpm_fill_sel_masks(
 	uint32_t *sel_masks, struct msm_rpm_iv_pair *req, int count)
 {
@@ -157,6 +167,14 @@ static inline void msm_rpm_send_req_interrupt(void)
 			msm_rpm_data.ipc_rpm_reg);
 }
 
+/*
+ * Note: assumes caller has acquired <msm_rpm_irq_lock>.
+ *
+ * Return value:
+ *   0: request acknowledgement
+ *   1: notification
+ *   2: spurious interrupt
+ */
 static int msm_rpm_process_ack_interrupt(void)
 {
 	uint32_t ctx_mask_ack;
@@ -184,7 +202,7 @@ static int msm_rpm_process_ack_interrupt(void)
 			msm_rpm_sel_mask_size);
 		msm_rpm_write(MSM_RPM_PAGE_CTRL,
 			target_ctrl(MSM_RPM_CTRL_ACK_CTX_0), 0);
-		
+		/* Ensure the write is complete before return */
 		mb();
 
 		return 1;
@@ -207,7 +225,7 @@ static int msm_rpm_process_ack_interrupt(void)
 			msm_rpm_sel_mask_size);
 		msm_rpm_write(MSM_RPM_PAGE_CTRL,
 			target_ctrl(MSM_RPM_CTRL_ACK_CTX_0), 0);
-		
+		/* Ensure the write is complete before return */
 		mb();
 
 		if (msm_rpm_request->done)
@@ -222,7 +240,7 @@ static int msm_rpm_process_ack_interrupt(void)
 
 static void msm_rpm_err_fatal(void)
 {
-	
+	/* Tell RPM that we're handling the interrupt */
 	__raw_writel(0x1, msm_rpm_data.ipc_rpm_reg);
 	panic("RPM error fataled");
 }
@@ -248,6 +266,9 @@ static irqreturn_t msm_rpm_ack_interrupt(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+/*
+ * Note: assumes caller has acquired <msm_rpm_irq_lock>.
+ */
 static void msm_rpm_busy_wait_for_request_completion(
 	bool allow_async_completion)
 {
@@ -274,6 +295,14 @@ static void msm_rpm_busy_wait_for_request_completion(
 	} while (rc);
 }
 
+/* Upon return, the <req> array will contain values from the ack page.
+ *
+ * Note: assumes caller has acquired <msm_rpm_mutex>.
+ *
+ * Return value:
+ *   0: success
+ *   -ENOSPC: request rejected
+ */
 static int msm_rpm_set_exclusive(int ctx,
 	uint32_t *sel_masks, struct msm_rpm_iv_pair *req, int count)
 {
@@ -321,16 +350,18 @@ static int msm_rpm_set_exclusive(int ctx,
 		!= ctx_mask);
 	BUG_ON(memcmp(sel_masks, sel_masks_ack, sizeof(sel_masks_ack)));
 
-	if (ctx_mask_ack & msm_rpm_get_ctx_mask(MSM_RPM_CTX_REJECTED)) {
-		pr_warn("[K] %s: following request is rejected by rpm\n", __func__);
-		for (i = 0; i < count; i++)
-				pr_warn("[K] %s: id: %d, value: %d\n", __func__, req[i].id, req[i].value);
-		return -ENOSPC;
-	} else {
-		return 0;
-	}
+	return (ctx_mask_ack & msm_rpm_get_ctx_mask(MSM_RPM_CTX_REJECTED))
+		? -ENOSPC : 0;
 }
 
+/* Upon return, the <req> array will contain values from the ack page.
+ *
+ * Note: assumes caller has acquired <msm_rpm_lock>.
+ *
+ * Return value:
+ *   0: success
+ *   -ENOSPC: request rejected
+ */
 static int msm_rpm_set_exclusive_noirq(int ctx,
 	uint32_t *sel_masks, struct msm_rpm_iv_pair *req, int count)
 {
@@ -397,16 +428,18 @@ static int msm_rpm_set_exclusive_noirq(int ctx,
 		!= ctx_mask);
 	BUG_ON(memcmp(sel_masks, sel_masks_ack, sizeof(sel_masks_ack)));
 
-	if (ctx_mask_ack & msm_rpm_get_ctx_mask(MSM_RPM_CTX_REJECTED)) {
-		pr_warn("[K] %s: following request is rejected by rpm\n", __func__);
-		for (i = 0; i < count; i++)
-				pr_warn("[K] %s: id: %d, value: %d\n", __func__, req[i].id, req[i].value);
-		return -ENOSPC;
-	} else {
-		return 0;
-	}
+	return (ctx_mask_ack & msm_rpm_get_ctx_mask(MSM_RPM_CTX_REJECTED))
+		? -ENOSPC : 0;
 }
 
+/* Upon return, the <req> array will contain values from the ack page.
+ *
+ * Return value:
+ *   0: success
+ *   -EINVAL: invalid <ctx> or invalid id in <req> array
+ *   -ENOSPC: request rejected
+ *   -ENODEV: RPM driver not initialized
+ */
 static int msm_rpm_set_common(
 	int ctx, struct msm_rpm_iv_pair *req, int count, bool noirq)
 {
@@ -438,6 +471,12 @@ set_common_exit:
 	return rc;
 }
 
+/*
+ * Return value:
+ *   0: success
+ *   -EINVAL: invalid <ctx> or invalid id in <req> array
+ *   -ENODEV: RPM driver not initialized.
+ */
 static int msm_rpm_clear_common(
 	int ctx, struct msm_rpm_iv_pair *req, int count, bool noirq)
 {
@@ -483,6 +522,9 @@ clear_common_exit:
 	return rc;
 }
 
+/*
+ * Note: assumes caller has acquired <msm_rpm_mutex>.
+ */
 static void msm_rpm_update_notification(uint32_t ctx,
 	struct msm_rpm_notif_config *curr_cfg,
 	struct msm_rpm_notif_config *new_cfg)
@@ -504,6 +546,9 @@ static void msm_rpm_update_notification(uint32_t ctx,
 	}
 }
 
+/*
+ * Note: assumes caller has acquired <msm_rpm_mutex>.
+ */
 static void msm_rpm_initialize_notification(void)
 {
 	struct msm_rpm_notif_config cfg;
@@ -528,13 +573,9 @@ static void msm_rpm_initialize_notification(void)
 	}
 }
 
-
-void msm_rpm_print_sleep_tick(void)
-{
-	uint32_t *mpm_sleep_tick = (void *) (MSM_RPM_MPM_BASE + 0x24);
-	pr_info("MPM_SLEEP_TICK: %llums\n", ((uint64_t)(*mpm_sleep_tick) * 1000) >> 15);
-}
-EXPORT_SYMBOL(msm_rpm_print_sleep_tick);
+/******************************************************************************
+ * Public functions
+ *****************************************************************************/
 
 int msm_rpm_local_request_is_outstanding(void)
 {
@@ -557,6 +598,21 @@ local_request_is_outstanding_exit:
 	return outstanding;
 }
 
+/*
+ * Read the specified status registers and return their values.
+ *
+ * status: array of id-value pairs.  Each <id> specifies a status register,
+ *         i.e, one of MSM_RPM_STATUS_ID_xxxx.  Upon return, each <value> will
+ *         contain the value of the status register.
+ * count: number of id-value pairs in the array
+ *
+ * Return value:
+ *   0: success
+ *   -EBUSY: RPM is updating the status page; values across different registers
+ *           may not be consistent
+ *   -EINVAL: invalid id in <status> array
+ *   -ENODEV: RPM driver not initialized
+ */
 int msm_rpm_get_status(struct msm_rpm_iv_pair *status, int count)
 {
 	uint32_t seq_begin;
@@ -599,12 +655,42 @@ get_status_exit:
 }
 EXPORT_SYMBOL(msm_rpm_get_status);
 
+/*
+ * Issue a resource request to RPM to set resource values.
+ *
+ * Note: the function may sleep and must be called in a task context.
+ *
+ * ctx: the request's context.
+ *      There two contexts that a RPM driver client can use:
+ *      MSM_RPM_CTX_SET_0 and MSM_RPM_CTX_SET_SLEEP.  For resource values
+ *      that are intended to take effect when the CPU is active,
+ *      MSM_RPM_CTX_SET_0 should be used.  For resource values that are
+ *      intended to take effect when the CPU is not active,
+ *      MSM_RPM_CTX_SET_SLEEP should be used.
+ * req: array of id-value pairs.  Each <id> specifies a RPM resource,
+ *      i.e, one of MSM_RPM_ID_xxxx.  Each <value> specifies the requested
+ *      resource value.
+ * count: number of id-value pairs in the array
+ *
+ * Return value:
+ *   0: success
+ *   -EINVAL: invalid <ctx> or invalid id in <req> array
+ *   -ENOSPC: request rejected
+ *   -ENODEV: RPM driver not initialized
+ */
 int msm_rpm_set(int ctx, struct msm_rpm_iv_pair *req, int count)
 {
 	return msm_rpm_set_common(ctx, req, count, false);
 }
 EXPORT_SYMBOL(msm_rpm_set);
 
+/*
+ * Issue a resource request to RPM to set resource values.
+ *
+ * Note: the function is similar to msm_rpm_set() except that it must be
+ *       called with interrupts masked.  If possible, use msm_rpm_set()
+ *       instead, to maximize CPU throughput.
+ */
 int msm_rpm_set_noirq(int ctx, struct msm_rpm_iv_pair *req, int count)
 {
 	WARN(!irqs_disabled(), "msm_rpm_set_noirq can only be called "
@@ -614,12 +700,35 @@ int msm_rpm_set_noirq(int ctx, struct msm_rpm_iv_pair *req, int count)
 }
 EXPORT_SYMBOL(msm_rpm_set_noirq);
 
+/*
+ * Issue a resource request to RPM to clear resource values.  Once the
+ * values are cleared, the resources revert back to their default values
+ * for this RPM master.
+ *
+ * Note: the function may sleep and must be called in a task context.
+ *
+ * ctx: the request's context.
+ * req: array of id-value pairs.  Each <id> specifies a RPM resource,
+ *      i.e, one of MSM_RPM_ID_xxxx.  <value>'s are ignored.
+ * count: number of id-value pairs in the array
+ *
+ * Return value:
+ *   0: success
+ *   -EINVAL: invalid <ctx> or invalid id in <req> array
+ */
 int msm_rpm_clear(int ctx, struct msm_rpm_iv_pair *req, int count)
 {
 	return msm_rpm_clear_common(ctx, req, count, false);
 }
 EXPORT_SYMBOL(msm_rpm_clear);
 
+/*
+ * Issue a resource request to RPM to clear resource values.
+ *
+ * Note: the function is similar to msm_rpm_clear() except that it must be
+ *       called with interrupts masked.  If possible, use msm_rpm_clear()
+ *       instead, to maximize CPU throughput.
+ */
 int msm_rpm_clear_noirq(int ctx, struct msm_rpm_iv_pair *req, int count)
 {
 	WARN(!irqs_disabled(), "msm_rpm_clear_noirq can only be called "
@@ -629,6 +738,29 @@ int msm_rpm_clear_noirq(int ctx, struct msm_rpm_iv_pair *req, int count)
 }
 EXPORT_SYMBOL(msm_rpm_clear_noirq);
 
+/*
+ * Register for RPM notification.  When the specified resources
+ * change their status on RPM, RPM sends out notifications and the
+ * driver will "up" the semaphore in struct msm_rpm_notification.
+ *
+ * Note: the function may sleep and must be called in a task context.
+ *
+ *       Memory for <n> must not be freed until the notification is
+ *       unregistered.  Memory for <req> can be freed after this
+ *       function returns.
+ *
+ * n: the notifcation object.  Caller should initialize only the
+ *    semaphore field.  When a notification arrives later, the
+ *    semaphore will be "up"ed.
+ * req: array of id-value pairs.  Each <id> specifies a status register,
+ *      i.e, one of MSM_RPM_STATUS_ID_xxxx.  <value>'s are ignored.
+ * count: number of id-value pairs in the array
+ *
+ * Return value:
+ *   0: success
+ *   -EINVAL: invalid id in <req> array
+ *   -ENODEV: RPM driver not initialized
+ */
 int msm_rpm_register_notification(struct msm_rpm_notification *n,
 	struct msm_rpm_iv_pair *req, int count)
 {
@@ -668,6 +800,17 @@ register_notification_exit:
 }
 EXPORT_SYMBOL(msm_rpm_register_notification);
 
+/*
+ * Unregister a notification.
+ *
+ * Note: the function may sleep and must be called in a task context.
+ *
+ * n: the notifcation object that was registered previously.
+ *
+ * Return value:
+ *   0: success
+ *   -ENODEV: RPM driver not initialized
+ */
 int msm_rpm_unregister_notification(struct msm_rpm_notification *n)
 {
 	unsigned long flags;
@@ -759,6 +902,21 @@ static void __init msm_rpm_populate_map(struct msm_rpm_platform_data *data)
 		dst->id = MSM_RPM_ID_LAST;
 		dst->sel = msm_rpm_data.sel_last + 1;
 
+		/*
+		 * copy the target specific id of the current and also of
+		 * all the #count id's that follow the current.
+		 * [MSM_RPM_ID_PM8921_S1_0] = { MSM_RPM_8960_ID_PM8921_S1_0,
+		 *				MSM_RPM_8960_SEL_PM8921_S1,
+		 *				2},
+		 * [MSM_RPM_ID_PM8921_S1_1] = { 0, 0, 0 },
+		 * should translate to
+		 * [MSM_RPM_ID_PM8921_S1_0] = { MSM_RPM_8960_ID_PM8921_S1_0,
+		 *				MSM_RPM_8960_SEL_PM8921,
+		 *				2 },
+		 * [MSM_RPM_ID_PM8921_S1_1] = { MSM_RPM_8960_ID_PM8921_S1_0 + 1,
+		 *				MSM_RPM_8960_SEL_PM8921,
+		 *				0 },
+		 */
 		for (j = 0; j < src->count; j++) {
 			dst = &msm_rpm_data.target_id[i + j];
 			dst->id = src->id + j;
@@ -790,21 +948,9 @@ int __init msm_rpm_init(struct msm_rpm_platform_data *data)
 	int rc;
 
 	memcpy(&msm_rpm_data, data, sizeof(struct msm_rpm_platform_data));
-	msm_rpm_stat_data = (stats_blob *)msm_rpm_data.reg_base_addrs[MSM_RPM_PAGE_STAT];
 	msm_rpm_sel_mask_size = msm_rpm_data.sel_last / 32 + 1;
 	BUG_ON(SEL_MASK_SIZE < msm_rpm_sel_mask_size);
 
-#ifndef CONFIG_ARCH_MSM8X60
-	if ((get_radio_flag() & KERNEL_FLAG_APPSBARK) && msm_rpm_stat_data)
-		msm_rpm_stat_data->rpm_debug_mode |= RPM_DEBUG_RAM_DUMP;
-
-	if ((get_kernel_flag() & KERNEL_FLAG_PM_MONITOR) && msm_rpm_stat_data)
-		msm_rpm_stat_data->rpm_debug_mode |= RPM_DEBUG_POWER_MEASUREMENT;
-
-	
-	if ((get_kernel_flag() & KERNEL_FLAG_RPM_DISABLE_WATCHDOG) && msm_rpm_stat_data)
-		msm_rpm_stat_data->rpm_debug_mode |= RPM_DEBUG_DISABLE_WATCHDOG;
-#endif
 	fw_major = msm_rpm_read(MSM_RPM_PAGE_STATUS,
 				target_status(MSM_RPM_STATUS_ID_VERSION_MAJOR));
 	fw_minor = msm_rpm_read(MSM_RPM_PAGE_STATUS,
@@ -872,112 +1018,6 @@ int __init msm_rpm_init(struct msm_rpm_platform_data *data)
 	}
 
 	msm_rpm_populate_map(data);
-	msm_rpm_print_sleep_tick();
 
 	return platform_driver_register(&msm_rpm_platform_driver);
-}
-
-#ifdef CONFIG_ARCH_MSM8X60
-void __init msm_rpm_lpm_init(uint32_t *lpm_setting, uint32_t num)
-{
-	uint32_t i = 0;
-	for (i = 0; i < num; i++)
-		msm_rpm_write(MSM_RPM_PAGE_STAT, RPM_LPM_PM8058 + i, lpm_setting[i]);
-}
-#endif
-
-void msm_rpm_dump_stat(void)
-{
-	int i = 0;
-
-	if (msm_rpm_stat_data) {
-		pr_info("%s: %u, %llums, %u, %llums\n", __func__,
-			msm_rpm_stat_data->stats[RPM_STAT_XO_SHUTDOWN_COUNT].value,
-			((uint64_t)msm_rpm_stat_data->stats[RPM_STAT_XO_SHUTDOWN_TIME].value * 1000) >> 15,
-			msm_rpm_stat_data->stats[RPM_STAT_VDD_MIN_COUNT].value,
-			((uint64_t)msm_rpm_stat_data->stats[RPM_STAT_VDD_MIN_TIME].value * 1000) >> 15);
-		for (i = 0; i < RPM_MASTER_COUNT; i++) {
-#ifdef CONFIG_ARCH_MSM8X60
-			pr_info("sleep_info_m.%d - %llums, %llums, %d %d %d %d\n", i, ((uint64_t)msm_rpm_stat_data->wake_info[i].timestamp * 1000) >> 15,
-			   ((uint64_t)msm_rpm_stat_data->sleep_info[i].timestamp * 1000) >> 15, msm_rpm_stat_data->sleep_info[i].cxo,
-			   msm_rpm_stat_data->sleep_info[i].pxo, msm_rpm_stat_data->sleep_info[i].vdd_mem,
-			   msm_rpm_stat_data->sleep_info[i].vdd_dig);
-#else
-			pr_info("sleep_info_m.%d - %u (%d), %llums, %d %d %d %d\n", i, msm_rpm_stat_data->sleep_info[i].count,
-				(msm_rpm_stat_data->sleep_info[i].stats[0] & 0x1), ((uint64_t)msm_rpm_stat_data->sleep_info[i].total_duration * 1000) >> 15,
-				((msm_rpm_stat_data->sleep_info[i].stats[0] & 0x2) >> 1), ((msm_rpm_stat_data->sleep_info[i].stats[0] & 0x4) >>2),
-				((msm_rpm_stat_data->sleep_info[i].stats[0] & 0xfffffff8) >> 3), msm_rpm_stat_data->sleep_info[i].stats[1]);
-#endif
-		}
-	}
-}
-
-void msm_rpm_set_suspend_flag(bool app_from_suspend)
-{
-	if (msm_rpm_stat_data) {
-#ifdef CONFIG_ARCH_MSM8X60
-		msm_rpm_stat_data->app_from_suspend = (!!app_from_suspend);
-#else
-		if (app_from_suspend)
-			msm_rpm_stat_data->rpm_debug_mode |= RPM_DEBUG_APP_FROM_SUSPEND;
-		else
-			msm_rpm_stat_data->rpm_debug_mode &= ~RPM_DEBUG_APP_FROM_SUSPEND;
-#endif
-	}
-}
-
-#ifdef CONFIG_APQ8064_ONLY 
-uint32_t htc_dump_vdd_min_time(uint32_t suspend_start, uint32_t resume_start)
-{
-	pr_info("%s: ", __func__);
-	if (!msm_rpm_stat_data)
-		return 0;
-
-	pr_info("core0 shutdown time=%d ticks, delta=%d ticks",
-		msm_rpm_stat_data->core0_shutdown_time,
-		msm_rpm_stat_data->core0_shutdown_time - suspend_start);
-	pr_info("vdd min enter time=%d ticks, delta=%d ticks",
-		msm_rpm_stat_data->vdd_min_enter_time,
-		msm_rpm_stat_data->vdd_min_enter_time - msm_rpm_stat_data->core0_shutdown_time);
-	pr_info("rpm sw-done enter time=%d ticks, delta=%d ticks",
-		msm_rpm_stat_data->sw_done_enter_time,
-		msm_rpm_stat_data->sw_done_enter_time - msm_rpm_stat_data->vdd_min_enter_time);
-	pr_info("rpm sw-done exit time=%d ticks, delta=%d ticks",
-		msm_rpm_stat_data->sw_done_exit_time,
-		msm_rpm_stat_data->sw_done_exit_time - msm_rpm_stat_data->sw_done_enter_time);
-	pr_info("vdd min exit time=%d ticks, delta=%d ticks",
-		msm_rpm_stat_data->vdd_min_exit_time,
-		msm_rpm_stat_data->vdd_min_exit_time - msm_rpm_stat_data->sw_done_exit_time);
-	pr_info("core0 bringup time=%d ticks, delta=%d ticks",
-		msm_rpm_stat_data->core0_bringup_time,
-		msm_rpm_stat_data->core0_bringup_time - msm_rpm_stat_data->vdd_min_exit_time);
-
-	return msm_rpm_stat_data->sw_done_exit_time;
-}
-#endif
-int htc_get_xo_vdd_min_info(uint32_t* xo_count, uint64_t* xo_time, uint32_t* vddmin_count, uint64_t* vddmin_time )
-{
-	if(!msm_rpm_stat_data)
-		return 0;
-	*xo_count = msm_rpm_stat_data->stats[RPM_STAT_XO_SHUTDOWN_COUNT].value;
-	*xo_time = ((uint64_t)msm_rpm_stat_data->stats[RPM_STAT_XO_SHUTDOWN_TIME].value * 1000) >> 15;
-	*vddmin_count = msm_rpm_stat_data->stats[RPM_STAT_VDD_MIN_COUNT].value;
-	*vddmin_time = ((uint64_t)msm_rpm_stat_data->stats[RPM_STAT_VDD_MIN_TIME].value * 1000) >> 15;
-	return 1;
-}
-
-uint64_t msm_rpm_get_xo_time()
-{
-	if (msm_rpm_stat_data)
-		return ((uint64_t)msm_rpm_stat_data->stats[RPM_STAT_XO_SHUTDOWN_TIME].value * 1000000000) >> 15;
-	else
-		return 0;
-}
-
-uint64_t msm_rpm_get_vdd_time()
-{
-	if (msm_rpm_stat_data)
-		return ((uint64_t)msm_rpm_stat_data->stats[RPM_STAT_VDD_MIN_TIME].value * 1000000000) >> 15;
-	else
-		return 0;
 }

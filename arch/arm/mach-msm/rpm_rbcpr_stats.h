@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2011, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -9,19 +8,23 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
+ *
  */
 
-#ifndef __ARCH_ARM_MACH_MSM_INCLUDE_MACH_RPM_REGULATOR_8974_H
-#define __ARCH_ARM_MACH_MSM_INCLUDE_MACH_RPM_REGULATOR_8974_H
+#ifndef __ARCH_ARM_MACH_MSM_RPM_RBCPR_STATS_H
+#define __ARCH_ARM_MACH_MSM_RPM_RBCPR_STATS_H
 
-/**
- * enum rpm_vreg_id - RPM regulator ID numbers (both real and pin control)
- */
-enum rpm_vreg_id_8974 {
-	RPM_VREG_ID_PM8941_S1,
-	RPM_VREG_ID_PM8941_S2,
-	RPM_VREG_ID_PM8941_L12,
-	RPM_VREG_ID_PM8941_MAX,
+#include <linux/types.h>
+
+struct msm_rpmrbcpr_design_data {
+	u32 upside_steps;
+	u32 downside_steps;
+	int svs_voltage;
+	int nominal_voltage;
+	int turbo_voltage;
 };
 
+struct msm_rpmrbcpr_platform_data {
+	struct msm_rpmrbcpr_design_data rbcpr_data;
+};
 #endif

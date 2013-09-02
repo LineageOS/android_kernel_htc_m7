@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -19,7 +19,6 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/slab.h>
-#include <linux/spinlock.h>
 #include <linux/string.h>
 #include <linux/platform_device.h>
 #include <linux/wakelock.h>
@@ -34,30 +33,7 @@
 #include "rpm_resources.h"
 #include "rpm-regulator-private.h"
 
-#ifdef pr_debug
-#undef pr_debug
-#endif
-#define pr_debug(fmt, args...) \
-	printk(KERN_DEBUG "[VREG] " pr_fmt(fmt), ## args)
-
-#ifdef pr_err
-#undef pr_err
-#endif
-#define pr_err(fmt, args...) \
-	printk(KERN_ERR "[VREG] " pr_fmt(fmt), ## args)
-
-#ifdef pr_warn
-#undef pr_warn
-#endif
-#define pr_warn(fmt, args...) \
-	printk(KERN_WARNING "[VREG] " pr_fmt(fmt), ## args)
-
-#ifdef pr_info
-#undef pr_info
-#endif
-#define pr_info(fmt, args...) \
-	printk(KERN_INFO "[VREG] " pr_fmt(fmt), ## args)
-
+/* Debug Definitions */
 
 enum {
 	MSM_RPM_VREG_DEBUG_REQUEST = BIT(0),
@@ -71,6 +47,7 @@ module_param_named(
 	debug_mask, msm_rpm_vreg_debug_mask, int, S_IRUSR | S_IWUSR
 );
 
+/* Used for access via the rpm_regulator_* API. */
 struct rpm_regulator {
 	int			vreg_id;
 	enum rpm_vreg_voter	voter;
@@ -84,6 +61,8 @@ struct vreg_config *(*get_config[])(void) = {
 	[RPM_VREG_VERSION_8960] = get_config_8960,
 	[RPM_VREG_VERSION_9615] = get_config_9615,
 	[RPM_VREG_VERSION_8930] = get_config_8930,
+	[RPM_VREG_VERSION_8930_PM8917] = get_config_8930_pm8917,
+	[RPM_VREG_VERSION_8960_PM8917] = get_config_8960_pm8917,
 };
 
 static struct rpm_regulator_consumer_mapping *consumer_map;
@@ -143,12 +122,19 @@ static const char *label_corner[] = {
 	[RPM_VREG_CORNER_HIGH]		= "HIGH",
 };
 
+/*
+ * This is used when voting for LPM or HPM by subtracting or adding to the
+ * hpm_min_load of a regulator.  It has units of uA.
+ */
 #define LOAD_THRESHOLD_STEP		1000
 
+/* rpm_version keeps track of the version for the currently running driver. */
 enum rpm_vreg_version rpm_version = -1;
 
+/* config holds all configuration data of the currently running driver. */
 static struct vreg_config *config;
 
+/* These regulator ID values are specified in the board file. */
 static int vreg_id_vdd_mem, vreg_id_vdd_dig;
 
 static inline int vreg_id_is_vdd_mem_or_dig(int id)
@@ -168,7 +154,7 @@ static void rpm_regulator_req(struct vreg *vreg, int set)
 	size_t buflen = DEBUG_PRINT_BUFFER_SIZE;
 	int pos = 0;
 
-	
+	/* Suppress VDD_MEM and VDD_DIG printing. */
 	if ((msm_rpm_vreg_debug_mask & MSM_RPM_VREG_DEBUG_IGNORE_VDD_MEM_DIG)
 	    && vreg_id_is_vdd_mem_or_dig(vreg->id))
 		return;
@@ -282,7 +268,7 @@ static void rpm_regulator_req(struct vreg *vreg, int set)
 static void rpm_regulator_vote(struct vreg *vreg, enum rpm_vreg_voter voter,
 			int set, int voter_uV, int aggregate_uV)
 {
-	
+	/* Suppress VDD_MEM and VDD_DIG printing. */
 	if ((msm_rpm_vreg_debug_mask & MSM_RPM_VREG_DEBUG_IGNORE_VDD_MEM_DIG)
 	    && vreg_id_is_vdd_mem_or_dig(vreg->id))
 		return;
@@ -294,7 +280,7 @@ static void rpm_regulator_vote(struct vreg *vreg, enum rpm_vreg_voter voter,
 
 static void rpm_regulator_duplicate(struct vreg *vreg, int set, int cnt)
 {
-	
+	/* Suppress VDD_MEM and VDD_DIG printing. */
 	if ((msm_rpm_vreg_debug_mask & MSM_RPM_VREG_DEBUG_IGNORE_VDD_MEM_DIG)
 	    && vreg_id_is_vdd_mem_or_dig(vreg->id))
 		return;
@@ -312,38 +298,38 @@ static void rpm_regulator_duplicate(struct vreg *vreg, int set, int cnt)
 }
 
 static bool requires_tcxo_workaround;
-static bool tcxo_workaround_noirq;
 static struct clk *tcxo_handle;
 static struct wake_lock tcxo_wake_lock;
 static DEFINE_MUTEX(tcxo_mutex);
-static DEFINE_SPINLOCK(tcxo_noirq_lock);
 static bool tcxo_is_enabled;
+/*
+ * TCXO must be kept on for at least the duration of its warmup (4 ms);
+ * otherwise, it will stay on when hardware disabling is attempted.
+ */
 #define TCXO_WARMUP_TIME_MS 4
 
 static void tcxo_get_handle(void)
 {
-	int rc;
-
 	if (!tcxo_handle) {
 		tcxo_handle = clk_get_sys("rpm-regulator", "vref_buff");
-		if (IS_ERR(tcxo_handle)) {
+		if (IS_ERR(tcxo_handle))
 			tcxo_handle = NULL;
-		} else {
-			rc = clk_prepare(tcxo_handle);
-			if (rc) {
-				clk_put(tcxo_handle);
-				tcxo_handle = NULL;
-			}
-		}
 	}
 }
 
+/*
+ * Perform best effort enable of CXO.  Since the MSM clock drivers depend upon
+ * the rpm-regulator driver, any rpm-regulator devices that are configured with
+ * always_on == 1 will not be able to enable CXO during probe.  This does not
+ * cause a problem though since CXO will be enabled by the boot loaders before
+ * Apps boots up.
+ */
 static bool tcxo_enable(void)
 {
 	int rc;
 
 	if (tcxo_handle && !tcxo_is_enabled) {
-		rc = clk_enable(tcxo_handle);
+		rc = clk_prepare_enable(tcxo_handle);
 		if (!rc) {
 			tcxo_is_enabled = true;
 			wake_lock(&tcxo_wake_lock);
@@ -356,33 +342,32 @@ static bool tcxo_enable(void)
 
 static void tcxo_delayed_disable_work(struct work_struct *work)
 {
-	unsigned long flags = 0;
+	mutex_lock(&tcxo_mutex);
 
-	if (tcxo_workaround_noirq)
-		spin_lock_irqsave(&tcxo_noirq_lock, flags);
-	else
-		mutex_lock(&tcxo_mutex);
-
-	clk_disable(tcxo_handle);
+	clk_disable_unprepare(tcxo_handle);
 	tcxo_is_enabled = false;
 	wake_unlock(&tcxo_wake_lock);
 
-	if (tcxo_workaround_noirq)
-		spin_unlock_irqrestore(&tcxo_noirq_lock, flags);
-	else
-		mutex_unlock(&tcxo_mutex);
+	mutex_unlock(&tcxo_mutex);
 }
 
 static DECLARE_DELAYED_WORK(tcxo_disable_work, tcxo_delayed_disable_work);
 
 static void tcxo_delayed_disable(void)
 {
+	/*
+	 * The delay in jiffies has 1 added to it to ensure that at least
+	 * one jiffy takes place before the work is enqueued.  Without this,
+	 * the work would be scheduled to run in the very next jiffy which could
+	 * result in too little delay and TCXO being stuck on.
+	 */
 	if (tcxo_handle)
 		schedule_delayed_work(&tcxo_disable_work,
 				msecs_to_jiffies(TCXO_WARMUP_TIME_MS) + 1);
 }
 
-static DEFINE_SPINLOCK(rpm_noirq_lock);
+/* Mutex lock needed for sleep-selectable regulators. */
+static DEFINE_MUTEX(rpm_sleep_sel_lock);
 
 static int voltage_from_req(struct vreg *vreg)
 {
@@ -415,7 +400,6 @@ static int vreg_send_request(struct vreg *vreg, enum rpm_vreg_voter voter,
 {
 	struct msm_rpm_iv_pair *prev_req;
 	int rc = 0, max_uV_vote = 0;
-	unsigned long flags = 0;
 	bool tcxo_enabled = false;
 	bool voltage_increased = false;
 	unsigned prev0, prev1;
@@ -438,7 +422,7 @@ static int vreg_send_request(struct vreg *vreg, enum rpm_vreg_voter voter,
 	vreg->req[1].value &= ~mask1;
 	vreg->req[1].value |= val1 & mask1;
 
-	
+	/* Set the force mode field based on which set is being requested. */
 	if (set == MSM_RPM_CTX_SET_0)
 		SET_PART(vreg, fm, vreg->pdata.force_mode);
 	else
@@ -447,7 +431,7 @@ static int vreg_send_request(struct vreg *vreg, enum rpm_vreg_voter voter,
 	if (update_voltage)
 		min_uV_vote[voter] = voltage_from_req(vreg);
 
-	
+	/* Find the highest voltage voted for and use it. */
 	for (i = 0; i < RPM_VREG_VOTER_COUNT; i++)
 		max_uV_vote = max(max_uV_vote, min_uV_vote[i]);
 	voltage_to_req(max_uV_vote, vreg);
@@ -456,30 +440,32 @@ static int vreg_send_request(struct vreg *vreg, enum rpm_vreg_voter voter,
 		rpm_regulator_vote(vreg, voter, set, min_uV_vote[voter],
 				max_uV_vote);
 
-	
+	/* Ignore duplicate requests */
 	if (vreg->req[0].value != prev_req[0].value ||
 	    vreg->req[1].value != prev_req[1].value) {
 
-		
+		/* Enable CXO clock if necessary for TCXO workaround. */
 		if (requires_tcxo_workaround && vreg->requires_cxo
 		    && (set == MSM_RPM_CTX_SET_0)
 		    && (GET_PART(vreg, uV) > GET_PART_PREV_ACT(vreg, uV))) {
+			mutex_lock(&tcxo_mutex);
+			if (!tcxo_handle)
+				tcxo_get_handle();
 			voltage_increased = true;
-			spin_lock_irqsave(&tcxo_noirq_lock, flags);
 			tcxo_enabled = tcxo_enable();
 		}
 
-		rc = msm_rpmrs_set_noirq(set, vreg->req, cnt);
+		rc = msm_rpmrs_set(set, vreg->req, cnt);
 		if (rc) {
 			vreg->req[0].value = prev0;
 			vreg->req[1].value = prev1;
 
-			vreg_err(vreg, "msm_rpmrs_set_noirq failed - "
+			vreg_err(vreg, "msm_rpmrs_set failed - "
 				"set=%s, id=%d, rc=%d\n",
 				(set == MSM_RPM_CTX_SET_0 ? "active" : "sleep"),
 				vreg->req[0].id, rc);
 		} else {
-			
+			/* Only save if nonzero and active set. */
 			if (max_uV_vote && (set == MSM_RPM_CTX_SET_0))
 				vreg->save_uV = max_uV_vote;
 			if (msm_rpm_vreg_debug_mask
@@ -489,10 +475,14 @@ static int vreg_send_request(struct vreg *vreg, enum rpm_vreg_voter voter,
 			prev_req[1].value = vreg->req[1].value;
 		}
 
+		/*
+		 * Schedule CXO clock to be disabled after TCXO warmup time if
+		 * TCXO workaround is applicable for this regulator.
+		 */
 		if (voltage_increased) {
 			if (tcxo_enabled)
 				tcxo_delayed_disable();
-			spin_unlock_irqrestore(&tcxo_noirq_lock, flags);
+			mutex_unlock(&tcxo_mutex);
 		}
 	} else if (msm_rpm_vreg_debug_mask & MSM_RPM_VREG_DEBUG_DUPLICATE) {
 		rpm_regulator_duplicate(vreg, set, cnt);
@@ -501,24 +491,32 @@ static int vreg_send_request(struct vreg *vreg, enum rpm_vreg_voter voter,
 	return rc;
 }
 
-static int vreg_set_noirq(struct vreg *vreg, enum rpm_vreg_voter voter,
+static int vreg_set_sleep_sel(struct vreg *vreg, enum rpm_vreg_voter voter,
 			  int sleep, unsigned mask0, unsigned val0,
 			  unsigned mask1, unsigned val1, unsigned cnt,
 			  int update_voltage)
 {
 	unsigned int s_mask[2] = {mask0, mask1}, s_val[2] = {val0, val1};
-	unsigned long flags;
 	int rc;
 
 	if (voter < 0 || voter >= RPM_VREG_VOTER_COUNT)
 		return -EINVAL;
 
-	spin_lock_irqsave(&rpm_noirq_lock, flags);
+	mutex_lock(&rpm_sleep_sel_lock);
 
+	/*
+	 * Send sleep set request first so that subsequent set_mode, etc calls
+	 * use the voltage from the active set.
+	 */
 	if (sleep)
 		rc = vreg_send_request(vreg, voter, MSM_RPM_CTX_SET_SLEEP,
 				mask0, val0, mask1, val1, cnt, update_voltage);
 	else {
+		/*
+		 * Vote for 0 V in the sleep set when active set-only is
+		 * specified.  This ensures that a disable vote will be issued
+		 * at some point for the sleep set of the regulator.
+		 */
 		if (vreg->part->uV.mask) {
 			s_val[vreg->part->uV.word] = 0 << vreg->part->uV.shift;
 			s_mask[vreg->part->uV.word] = vreg->part->uV.mask;
@@ -540,11 +538,37 @@ static int vreg_set_noirq(struct vreg *vreg, enum rpm_vreg_voter voter,
 	rc = vreg_send_request(vreg, voter, MSM_RPM_CTX_SET_0, mask0, val0,
 					mask1, val1, cnt, update_voltage);
 
-	spin_unlock_irqrestore(&rpm_noirq_lock, flags);
+	mutex_unlock(&rpm_sleep_sel_lock);
 
 	return rc;
 }
 
+/**
+ * rpm_vreg_set_voltage - vote for a min_uV value of specified regualtor
+ * @vreg: ID for regulator
+ * @voter: ID for the voter
+ * @min_uV: minimum acceptable voltage (in uV) that is voted for
+ * @max_uV: maximum acceptable voltage (in uV) that is voted for
+ * @sleep_also: 0 for active set only, non-0 for active set and sleep set
+ *
+ * Returns 0 on success or errno.
+ *
+ * This function is used to vote for the voltage of a regulator without
+ * using the regulator framework.  It is needed for consumers which wish to only
+ * vote for active set regulator voltage.
+ *
+ * If sleep_also == 0, then a sleep-set value of 0V will be voted for.
+ *
+ * This function may only be called for regulators which have the sleep flag
+ * specified in their private data.
+ *
+ * Consumers can vote to disable a regulator with this function by passing
+ * min_uV = 0 and max_uV = 0.
+ *
+ * Voltage switch type regulators may be controlled via rpm_vreg_set_voltage
+ * as well.  For this type of regulator, max_uV > 0 is treated as an enable
+ * request and max_uV == 0 is treated as a disable request.
+ */
 int rpm_vreg_set_voltage(int vreg_id, enum rpm_vreg_voter voter, int min_uV,
 			 int max_uV, int sleep_also)
 {
@@ -571,9 +595,14 @@ int rpm_vreg_set_voltage(int vreg_id, enum rpm_vreg_voter voter, int min_uV,
 		return -EINVAL;
 	}
 
-	
+	/* Allow min_uV == max_uV == 0 to represent a disable request. */
 	if ((min_uV != 0 || max_uV != 0)
 	    && (vreg->part->uV.mask || vreg->part->mV.mask)) {
+		/*
+		 * Check if request voltage is outside of allowed range. The
+		 * regulator core has already checked that constraint range
+		 * is inside of the physically allowed range.
+		 */
 		lim_min_uV = vreg->pdata.init_data.constraints.min_uV;
 		lim_max_uV = vreg->pdata.init_data.constraints.max_uV;
 
@@ -588,7 +617,7 @@ int rpm_vreg_set_voltage(int vreg_id, enum rpm_vreg_voter voter, int min_uV,
 		}
 
 		range = &vreg->set_points->range[0];
-		
+		/* Find the range which uV is inside of. */
 		for (i = vreg->set_points->count - 1; i > 0; i--) {
 			if (uV > vreg->set_points->range[i - 1].max_uV) {
 				range = &vreg->set_points->range[i];
@@ -596,6 +625,10 @@ int rpm_vreg_set_voltage(int vreg_id, enum rpm_vreg_voter voter, int min_uV,
 			}
 		}
 
+		/*
+		 * Force uV to be an allowed set point and apply a ceiling
+		 * function to non-set point values.
+		 */
 		uV = (uV - range->min_uV + range->step_uV - 1) / range->step_uV;
 		uV = uV * range->step_uV + range->min_uV;
 
@@ -609,6 +642,11 @@ int rpm_vreg_set_voltage(int vreg_id, enum rpm_vreg_voter voter, int min_uV,
 	}
 
 	if (vreg->type == RPM_REGULATOR_TYPE_CORNER) {
+		/*
+		 * Translate from enum values which work as inputs in the
+		 * rpm_vreg_set_voltage function to the actual corner values
+		 * sent to the RPM.
+		 */
 		if (uV > 0)
 			uV -= RPM_VREG_CORNER_NONE;
 	}
@@ -621,21 +659,33 @@ int rpm_vreg_set_voltage(int vreg_id, enum rpm_vreg_voter voter, int min_uV,
 			= MICRO_TO_MILLI(uV) << vreg->part->mV.shift;
 		mask[vreg->part->mV.word] = vreg->part->mV.mask;
 	} else if (vreg->part->enable_state.mask) {
+		/*
+		 * Translate max_uV > 0 into an enable request for regulator
+		 * types which to not support voltage setting, e.g. voltage
+		 * switches.
+		 */
 		val[vreg->part->enable_state.word]
 		    = (max_uV > 0 ? 1 : 0) << vreg->part->enable_state.shift;
 		mask[vreg->part->enable_state.word]
 		    = vreg->part->enable_state.mask;
 	}
 
-	rc = vreg_set_noirq(vreg, voter, sleep_also, mask[0], val[0], mask[1],
-			    val[1], vreg->part->request_len, 1);
+	rc = vreg_set_sleep_sel(vreg, voter, sleep_also, mask[0], val[0],
+				mask[1], val[1], vreg->part->request_len, 1);
 	if (rc)
-		vreg_err(vreg, "vreg_set_noirq failed, rc=%d\n", rc);
+		vreg_err(vreg, "vreg_set_sleep_sel failed, rc=%d\n", rc);
 
 	return rc;
 }
 EXPORT_SYMBOL_GPL(rpm_vreg_set_voltage);
 
+/**
+ * rpm_vreg_set_frequency - sets the frequency of a switching regulator
+ * @vreg: ID for regulator
+ * @freq: enum corresponding to desired frequency
+ *
+ * Returns 0 on success or errno.
+ */
 int rpm_vreg_set_frequency(int vreg_id, enum rpm_vreg_freq freq)
 {
 	unsigned int mask[2] = {0}, val[2] = {0};
@@ -670,16 +720,28 @@ int rpm_vreg_set_frequency(int vreg_id, enum rpm_vreg_freq freq)
 	val[vreg->part->freq.word] = freq << vreg->part->freq.shift;
 	mask[vreg->part->freq.word] = vreg->part->freq.mask;
 
-	rc = vreg_set_noirq(vreg, RPM_VREG_VOTER_REG_FRAMEWORK, 1, mask[0],
+	rc = vreg_set_sleep_sel(vreg, RPM_VREG_VOTER_REG_FRAMEWORK, 1, mask[0],
 			   val[0], mask[1], val[1], vreg->part->request_len, 0);
 	if (rc)
-		vreg_err(vreg, "vreg_set failed, rc=%d\n", rc);
+		vreg_err(vreg, "vreg_set_sleep_sel failed, rc=%d\n", rc);
 
 	return rc;
 }
 EXPORT_SYMBOL_GPL(rpm_vreg_set_frequency);
 
 #define MAX_NAME_LEN 64
+/**
+ * rpm_regulator_get() - lookup and obtain a handle to an RPM regulator
+ * @dev: device for regulator consumer
+ * @supply: supply name
+ *
+ * Returns a struct rpm_regulator corresponding to the regulator producer,
+ * or ERR_PTR() containing errno.
+ *
+ * This function may only be called from nonatomic context.  The mapping between
+ * <dev, supply> tuples and rpm_regulators struct pointers is specified via
+ * rpm-regulator platform data.
+ */
 struct rpm_regulator *rpm_regulator_get(struct device *dev, const char *supply)
 {
 	struct rpm_regulator_consumer_mapping *mapping = NULL;
@@ -706,7 +768,7 @@ struct rpm_regulator *rpm_regulator_get(struct device *dev, const char *supply)
 		devname = dev_name(dev);
 
 	for (i = 0; i < consumer_map_len; i++) {
-		
+		/* If the mapping has a device set up it must match */
 		if (consumer_map[i].dev_name &&
 			(!devname || strncmp(consumer_map[i].dev_name, devname,
 					     MAX_NAME_LEN)))
@@ -754,12 +816,36 @@ static int rpm_regulator_check_input(struct rpm_regulator *regulator)
 	return rc;
 }
 
+/**
+ * rpm_regulator_put() - free the RPM regulator handle
+ * @regulator: RPM regulator handle
+ *
+ * Parameter reaggregation does not take place when rpm_regulator_put is called.
+ * Therefore, regulator enable state and voltage must be configured
+ * appropriately before calling rpm_regulator_put.
+ *
+ * This function may be called from either atomic or nonatomic context.
+ */
 void rpm_regulator_put(struct rpm_regulator *regulator)
 {
 	kfree(regulator);
 }
 EXPORT_SYMBOL_GPL(rpm_regulator_put);
 
+/**
+ * rpm_regulator_enable() - enable regulator output
+ * @regulator: RPM regulator handle
+ *
+ * Returns 0 on success or errno on failure.
+ *
+ * This function may be called from either atomic or nonatomic context.  This
+ * function may only be called for regulators which have the sleep_selectable
+ * flag set in their configuration data.
+ *
+ * rpm_regulator_set_voltage must be called before rpm_regulator_enable because
+ * enabling is defined by the RPM interface to be requesting the desired
+ * non-zero regulator output voltage.
+ */
 int rpm_regulator_enable(struct rpm_regulator *regulator)
 {
 	int rc = rpm_regulator_check_input(regulator);
@@ -776,6 +862,10 @@ int rpm_regulator_enable(struct rpm_regulator *regulator)
 
 	vreg = &config->vregs[regulator->vreg_id];
 
+	/*
+	 * Handle voltage switches which can be enabled without
+	 * rpm_regulator_set_voltage ever being called.
+	 */
 	if (regulator->min_uV == 0 && regulator->max_uV == 0
 	    && vreg->part->uV.mask == 0 && vreg->part->mV.mask == 0) {
 		regulator->min_uV = 1;
@@ -799,6 +889,20 @@ int rpm_regulator_enable(struct rpm_regulator *regulator)
 }
 EXPORT_SYMBOL_GPL(rpm_regulator_enable);
 
+/**
+ * rpm_regulator_disable() - disable regulator output
+ * @regulator: RPM regulator handle
+ *
+ * Returns 0 on success or errno on failure.
+ *
+ * The enable state of the regulator is determined by aggregating the requests
+ * of all consumers.  Therefore, it is possible that the regulator will remain
+ * enabled even after rpm_regulator_disable is called.
+ *
+ * This function may be called from either atomic or nonatomic context.  This
+ * function may only be called for regulators which have the sleep_selectable
+ * flag set in their configuration data.
+ */
 int rpm_regulator_disable(struct rpm_regulator *regulator)
 {
 	int rc = rpm_regulator_check_input(regulator);
@@ -816,6 +920,30 @@ int rpm_regulator_disable(struct rpm_regulator *regulator)
 }
 EXPORT_SYMBOL_GPL(rpm_regulator_disable);
 
+/**
+ * rpm_regulator_set_voltage() - set regulator output voltage
+ * @regulator: RPM regulator handle
+ * @min_uV: minimum required voltage in uV
+ * @max_uV: maximum acceptable voltage in uV
+ *
+ * Sets a voltage regulator to the desired output voltage. This can be set
+ * while the regulator is disabled or enabled.  If the regulator is disabled,
+ * then rpm_regulator_set_voltage will both enable the regulator and set it to
+ * output at the requested voltage.
+ *
+ * The min_uV to max_uV voltage range requested must intersect with the
+ * voltage constraint range configured for the regulator.
+ *
+ * Returns 0 on success or errno on failure.
+ *
+ * The final voltage value that is sent to the RPM is aggregated based upon the
+ * values requested by all consumers of the regulator.  This corresponds to the
+ * maximum min_uV value.
+ *
+ * This function may be called from either atomic or nonatomic context.  This
+ * function may only be called for regulators which have the sleep_selectable
+ * flag set in their configuration data.
+ */
 int rpm_regulator_set_voltage(struct rpm_regulator *regulator, int min_uV,
 			      int max_uV)
 {
@@ -863,13 +991,12 @@ static inline unsigned saturate_avg_load(struct vreg *vreg, unsigned load_uA)
 	return (load_uA > load_max ? load_max : load_uA);
 }
 
+/* Change vreg->req, but do not send it to the RPM. */
 static int vreg_store(struct vreg *vreg, unsigned mask0, unsigned val0,
 		unsigned mask1, unsigned val1)
 {
-	unsigned long flags = 0;
-
 	if (vreg->pdata.sleep_selectable)
-		spin_lock_irqsave(&rpm_noirq_lock, flags);
+		mutex_lock(&rpm_sleep_sel_lock);
 
 	vreg->req[0].value &= ~mask0;
 	vreg->req[0].value |= val0 & mask0;
@@ -878,7 +1005,7 @@ static int vreg_store(struct vreg *vreg, unsigned mask0, unsigned val0,
 	vreg->req[1].value |= val1 & mask1;
 
 	if (vreg->pdata.sleep_selectable)
-		spin_unlock_irqrestore(&rpm_noirq_lock, flags);
+		mutex_unlock(&rpm_sleep_sel_lock);
 
 	return 0;
 }
@@ -887,13 +1014,16 @@ static int vreg_set(struct vreg *vreg, unsigned mask0, unsigned val0,
 		unsigned mask1, unsigned val1, unsigned cnt)
 {
 	unsigned prev0 = 0, prev1 = 0;
-	unsigned long flags = 0;
 	bool tcxo_enabled = false;
 	bool voltage_increased = false;
 	int rc;
 
+	/*
+	 * Bypass the normal route for regulators that can be called to change
+	 * just the active set values.
+	 */
 	if (vreg->pdata.sleep_selectable)
-		return vreg_set_noirq(vreg, RPM_VREG_VOTER_REG_FRAMEWORK, 1,
+		return vreg_set_sleep_sel(vreg, RPM_VREG_VOTER_REG_FRAMEWORK, 1,
 					mask0, val0, mask1, val1, cnt, 1);
 
 	prev0 = vreg->req[0].value;
@@ -904,7 +1034,7 @@ static int vreg_set(struct vreg *vreg, unsigned mask0, unsigned val0,
 	vreg->req[1].value &= ~mask1;
 	vreg->req[1].value |= val1 & mask1;
 
-	
+	/* Ignore duplicate requests */
 	if (vreg->req[0].value == vreg->prev_active_req[0].value &&
 	    vreg->req[1].value == vreg->prev_active_req[1].value) {
 		if (msm_rpm_vreg_debug_mask & MSM_RPM_VREG_DEBUG_DUPLICATE)
@@ -912,24 +1042,17 @@ static int vreg_set(struct vreg *vreg, unsigned mask0, unsigned val0,
 		return 0;
 	}
 
-	
+	/* Enable CXO clock if necessary for TCXO workaround. */
 	if (requires_tcxo_workaround && vreg->requires_cxo
 	    && (GET_PART(vreg, uV) > GET_PART_PREV_ACT(vreg, uV))) {
+		mutex_lock(&tcxo_mutex);
 		if (!tcxo_handle)
 			tcxo_get_handle();
-		if (tcxo_workaround_noirq)
-			spin_lock_irqsave(&tcxo_noirq_lock, flags);
-		else
-			mutex_lock(&tcxo_mutex);
-
 		voltage_increased = true;
 		tcxo_enabled = tcxo_enable();
 	}
 
-	if (voltage_increased && tcxo_workaround_noirq)
-		rc = msm_rpmrs_set_noirq(MSM_RPM_CTX_SET_0, vreg->req, cnt);
-	else
-		rc = msm_rpm_set(MSM_RPM_CTX_SET_0, vreg->req, cnt);
+	rc = msm_rpm_set(MSM_RPM_CTX_SET_0, vreg->req, cnt);
 
 	if (rc) {
 		vreg->req[0].value = prev0;
@@ -944,14 +1067,14 @@ static int vreg_set(struct vreg *vreg, unsigned mask0, unsigned val0,
 		vreg->prev_active_req[1].value = vreg->req[1].value;
 	}
 
+	/*
+	 * Schedule CXO clock to be disabled after TCXO warmup time if TCXO
+	 * workaround is applicable for this regulator.
+	 */
 	if (voltage_increased) {
 		if (tcxo_enabled)
 			tcxo_delayed_disable();
-
-		if (tcxo_workaround_noirq)
-			spin_unlock_irqrestore(&tcxo_noirq_lock, flags);
-		else
-			mutex_unlock(&tcxo_mutex);
+		mutex_unlock(&tcxo_mutex);
 	}
 
 	return rc;
@@ -975,7 +1098,7 @@ static void set_enable(struct vreg *vreg, unsigned int *mask, unsigned int *val)
 	case RPM_REGULATOR_TYPE_LDO:
 	case RPM_REGULATOR_TYPE_SMPS:
 	case RPM_REGULATOR_TYPE_CORNER:
-		
+		/* Enable by setting a voltage. */
 		if (vreg->part->uV.mask) {
 			val[vreg->part->uV.word]
 				|= vreg->save_uV << vreg->part->uV.shift;
@@ -989,7 +1112,7 @@ static void set_enable(struct vreg *vreg, unsigned int *mask, unsigned int *val)
 		break;
 	case RPM_REGULATOR_TYPE_VS:
 	case RPM_REGULATOR_TYPE_NCP:
-		
+		/* Enable by setting enable_state. */
 		val[vreg->part->enable_state.word]
 			|= RPM_VREG_STATE_ON << vreg->part->enable_state.shift;
 		mask[vreg->part->enable_state.word]
@@ -1027,7 +1150,7 @@ static void set_disable(struct vreg *vreg, unsigned int *mask,
 	case RPM_REGULATOR_TYPE_LDO:
 	case RPM_REGULATOR_TYPE_SMPS:
 	case RPM_REGULATOR_TYPE_CORNER:
-		
+		/* Disable by setting a voltage of 0 uV. */
 		if (vreg->part->uV.mask) {
 			val[vreg->part->uV.word] |= 0 << vreg->part->uV.shift;
 			mask[vreg->part->uV.word] |= vreg->part->uV.mask;
@@ -1038,7 +1161,7 @@ static void set_disable(struct vreg *vreg, unsigned int *mask,
 		break;
 	case RPM_REGULATOR_TYPE_VS:
 	case RPM_REGULATOR_TYPE_NCP:
-		
+		/* Disable by setting enable_state. */
 		val[vreg->part->enable_state.word]
 			|= RPM_VREG_STATE_OFF << vreg->part->enable_state.shift;
 		mask[vreg->part->enable_state.word]
@@ -1056,7 +1179,7 @@ static int rpm_vreg_disable(struct regulator_dev *rdev)
 
 	mutex_lock(&vreg->pc_lock);
 
-	
+	/* Only disable if pin control is not in use. */
 	if (!vreg->is_enabled_pc)
 		rc = vreg_set(vreg, mask[0], val[0], mask[1], val[1],
 				vreg->part->request_len);
@@ -1081,7 +1204,7 @@ static int vreg_set_voltage(struct regulator_dev *rdev, int min_uV, int max_uV,
 	int rc = 0, uV = min_uV;
 	int lim_min_uV, lim_max_uV, i;
 
-	
+	/* Check if request voltage is outside of physically settable range. */
 	lim_min_uV = vreg->set_points->range[0].min_uV;
 	lim_max_uV =
 		vreg->set_points->range[vreg->set_points->count - 1].max_uV;
@@ -1096,7 +1219,7 @@ static int vreg_set_voltage(struct regulator_dev *rdev, int min_uV, int max_uV,
 		return -EINVAL;
 	}
 
-	
+	/* Find the range which uV is inside of. */
 	for (i = vreg->set_points->count - 1; i > 0; i--) {
 		if (uV > vreg->set_points->range[i - 1].max_uV) {
 			range = &vreg->set_points->range[i];
@@ -1104,6 +1227,10 @@ static int vreg_set_voltage(struct regulator_dev *rdev, int min_uV, int max_uV,
 		}
 	}
 
+	/*
+	 * Force uV to be an allowed set point and apply a ceiling function
+	 * to non-set point values.
+	 */
 	uV = (uV - range->min_uV + range->step_uV - 1) / range->step_uV;
 	uV = uV * range->step_uV + range->min_uV;
 
@@ -1116,6 +1243,11 @@ static int vreg_set_voltage(struct regulator_dev *rdev, int min_uV, int max_uV,
 	}
 
 	if (vreg->type == RPM_REGULATOR_TYPE_CORNER) {
+		/*
+		 * Translate from enum values which work as inputs in the
+		 * regulator_set_voltage function to the actual corner values
+		 * sent to the RPM.
+		 */
 		uV -= RPM_VREG_CORNER_NONE;
 	}
 
@@ -1130,13 +1262,19 @@ static int vreg_set_voltage(struct regulator_dev *rdev, int min_uV, int max_uV,
 
 	mutex_lock(&vreg->pc_lock);
 
+	/*
+	 * Only send a request for a new voltage if the regulator is currently
+	 * enabled.  This will ensure that LDO and SMPS regulators are not
+	 * inadvertently turned on because voltage > 0 is equivalent to
+	 * enabling.  For NCP, this just removes unnecessary RPM requests.
+	 */
 	if (vreg->is_enabled) {
 		rc = vreg_set(vreg, mask[0], val[0], mask[1], val[1],
 				vreg->part->request_len);
 		if (rc)
 			vreg_err(vreg, "vreg_set failed, rc=%d\n", rc);
 	} else if (vreg->type == RPM_REGULATOR_TYPE_NCP) {
-		
+		/* Regulator is disabled; store but don't send new request. */
 		rc = vreg_store(vreg, mask[0], val[0], mask[1], val[1]);
 	}
 
@@ -1195,7 +1333,7 @@ static int vreg_set_mode(struct regulator_dev *rdev, unsigned int mode)
 				& vreg->part->ip.mask) >> vreg->part->ip.shift);
 
 	if (mode == config->mode_hpm) {
-		
+		/* Make sure that request currents are in HPM range. */
 		if (peak_uA < vreg_hpm_min_uA(vreg)) {
 			val[vreg->part->ip.word]
 				= MICRO_TO_MILLI(vreg_hpm_min_uA(vreg))
@@ -1211,7 +1349,7 @@ static int vreg_set_mode(struct regulator_dev *rdev, unsigned int mode)
 			}
 		}
 	} else if (mode == config->mode_lpm) {
-		
+		/* Make sure that request currents are in LPM range. */
 		if (peak_uA > vreg_lpm_max_uA(vreg)) {
 			val[vreg->part->ip.word]
 				= MICRO_TO_MILLI(vreg_lpm_max_uA(vreg))
@@ -1236,7 +1374,7 @@ static int vreg_set_mode(struct regulator_dev *rdev, unsigned int mode)
 		rc = vreg_set(vreg, mask[0], val[0], mask[1], val[1],
 					vreg->part->request_len);
 	} else {
-		
+		/* Regulator is disabled; store but don't send new request. */
 		rc = vreg_store(vreg, mask[0], val[0], mask[1], val[1]);
 	}
 
@@ -1286,12 +1424,23 @@ static unsigned int vreg_legacy_get_optimum_mode(struct regulator_dev *rdev,
 	struct vreg *vreg = rdev_get_drvdata(rdev);
 
 	if (MICRO_TO_MILLI(load_uA) <= 0) {
+		/*
+		 * vreg_legacy_get_optimum_mode is being called before consumers
+		 * have specified their load currents via
+		 * regulator_set_optimum_mode. Return whatever the existing mode
+		 * is.
+		 */
 		return vreg->mode;
 	}
 
 	return vreg_get_optimum_mode(rdev, input_uV, output_uV, load_uA);
 }
 
+/*
+ * Returns the logical pin control enable state because the pin control options
+ * present in the hardware out of restart could be different from those desired
+ * by the consumer.
+ */
 static int vreg_pin_control_is_enabled(struct regulator_dev *rdev)
 {
 	struct vreg *vreg = rdev_get_drvdata(rdev);
@@ -1373,6 +1522,7 @@ static int vreg_enable_time(struct regulator_dev *rdev)
 	return vreg->pdata.enable_time;
 }
 
+/* Real regulator operations. */
 static struct regulator_ops ldo_ops = {
 	.enable			= rpm_vreg_enable,
 	.disable		= rpm_vreg_disable,
@@ -1426,6 +1576,7 @@ static struct regulator_ops corner_ops = {
 	.enable_time		= vreg_enable_time,
 };
 
+/* Pin control regulator operations. */
 static struct regulator_ops pin_control_ops = {
 	.enable			= vreg_pin_control_enable,
 	.disable		= vreg_pin_control_disable,
@@ -1499,6 +1650,10 @@ rpm_vreg_init_regulator(const struct rpm_regulator_init_data *pdata,
 	rdesc->type  = REGULATOR_VOLTAGE;
 
 	if (config->is_real_id(pdata->id)) {
+		/*
+		 * Real regulator; do not modify pin control and pin function
+		 * values.
+		 */
 		rdesc->ops = vreg_ops[vreg->type];
 		pin_ctrl = vreg->pdata.pin_ctrl;
 		pin_fn = vreg->pdata.pin_fn;
@@ -1513,7 +1668,7 @@ rpm_vreg_init_regulator(const struct rpm_regulator_init_data *pdata,
 		else
 			vreg->mode = config->mode_lpm;
 
-		
+		/* Initialize the RPM request. */
 		SET_PART(vreg, ip,
 		 MICRO_TO_MILLI(saturate_peak_load(vreg, vreg->pdata.peak_uA)));
 		SET_PART(vreg, fm, vreg->pdata.force_mode);
@@ -1542,9 +1697,9 @@ rpm_vreg_init_regulator(const struct rpm_regulator_init_data *pdata,
 		vreg->pdata.pin_ctrl = pdata->pin_ctrl;
 		vreg->pdata.pin_fn = pdata->pin_fn;
 
-		
+		/* Initialize the RPM request. */
 		pin_fn = config->pin_func_none;
-		
+		/* Allow pf=sleep_b to be specified by platform data. */
 		if (vreg->pdata.pin_fn == config->pin_func_sleep_b)
 			pin_fn = config->pin_func_sleep_b;
 		SET_PART(vreg, pf, pin_fn);
@@ -1583,7 +1738,7 @@ static void rpm_vreg_set_point_init(void)
 
 	set_points = config->set_points;
 
-	
+	/* Calculate the number of set points available for each regulator. */
 	for (i = 0; i < config->set_points_len; i++) {
 		temp = 0;
 		for (j = 0; j < set_points[i]->count; j++) {
@@ -1602,7 +1757,6 @@ static int __devinit rpm_vreg_probe(struct platform_device *pdev)
 	struct rpm_regulator_platform_data *platform_data;
 	static struct rpm_regulator_consumer_mapping *prev_consumer_map;
 	static int prev_consumer_map_len;
-	struct vreg *vreg;
 	int rc = 0;
 	int i, id;
 
@@ -1640,12 +1794,12 @@ static int __devinit rpm_vreg_probe(struct platform_device *pdev)
 				vreg_ops[i]->get_optimum_mode
 					= vreg_legacy_get_optimum_mode;
 		rpm_vreg_set_point_init();
-		
+		/* First time probed; initialize pin control mutexes. */
 		for (i = 0; i < config->vregs_len; i++)
 			mutex_init(&config->vregs[i].pc_lock);
 	}
 
-	
+	/* Copy the list of private API consumers. */
 	if (platform_data->consumer_map_len > 0) {
 		if (consumer_map_len == 0) {
 			consumer_map_len = platform_data->consumer_map_len;
@@ -1658,7 +1812,7 @@ static int __devinit rpm_vreg_probe(struct platform_device *pdev)
 				return -ENOMEM;
 			}
 		} else {
-			
+			/* Concatenate new map with the existing one. */
 			prev_consumer_map = consumer_map;
 			prev_consumer_map_len = consumer_map_len;
 			consumer_map_len += platform_data->consumer_map_len;
@@ -1688,19 +1842,7 @@ static int __devinit rpm_vreg_probe(struct platform_device *pdev)
 				"rpm_regulator_tcxo");
 	}
 
-	if (requires_tcxo_workaround && !tcxo_workaround_noirq) {
-		for (i = 0; i < platform_data->num_regulators; i++) {
-			vreg = rpm_vreg_get_vreg(
-					platform_data->init_data[i].id);
-			if (vreg && vreg->requires_cxo
-			    && platform_data->init_data[i].sleep_selectable) {
-				tcxo_workaround_noirq = true;
-				break;
-			}
-		}
-	}
-
-	
+	/* Initialize all of the regulators listed in the platform data. */
 	for (i = 0; i < platform_data->num_regulators; i++) {
 		rc = rpm_vreg_init_regulator(&platform_data->init_data[i],
 			&pdev->dev);
@@ -1715,7 +1857,7 @@ static int __devinit rpm_vreg_probe(struct platform_device *pdev)
 	return rc;
 
 remove_regulators:
-	
+	/* Unregister all regulators added before the erroring one. */
 	for (; i >= 0; i--) {
 		id = platform_data->init_data[i].id;
 		if (config->is_real_id(id)) {
