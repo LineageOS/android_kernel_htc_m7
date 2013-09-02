@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010, 2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -22,9 +22,12 @@
 #define SCM_FLAG_WARMBOOT_CPU3		0x40
 
 #ifdef CONFIG_MSM_SCM
-int scm_set_boot_addr(void *addr, int flags);
+int scm_set_boot_addr(phys_addr_t addr, unsigned int flags);
 #else
-static inline int scm_set_boot_addr(void *addr, int flags) { return 0; }
+static inline int scm_set_boot_addr(phys_addr_t addr, unsigned int flags)
+{
+	return 0;
+}
 #endif
 
 #endif

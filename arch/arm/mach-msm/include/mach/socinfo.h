@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2009-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -32,40 +32,47 @@
 #define SOCINFO_VERSION_MINOR(ver) (ver & 0x0000ffff)
 
 #ifdef CONFIG_OF
-#define of_board_is_sim()	of_machine_is_compatible("qcom,sim")
-#define of_board_is_rumi()	of_machine_is_compatible("qcom,rumi")
-#define of_board_is_fluid()	of_machine_is_compatible("qcom,fluid")
-#define of_board_is_liquid()	of_machine_is_compatible("qcom,liquid")
-
-#define machine_is_msm8974()	of_machine_is_compatible("qcom,msm8974")
-#define machine_is_msm9625()	of_machine_is_compatible("qcom,msm9625")
-#define machine_is_msm8610()	of_machine_is_compatible("qcom,msm8610")
-#define machine_is_msm8226()	of_machine_is_compatible("qcom,msm8226")
-
-#define early_machine_is_msm8610()	\
-	of_flat_dt_is_compatible(of_get_flat_dt_root(), "qcom,msm8610")
+#define early_machine_is_msm8974()	\
+	of_flat_dt_is_compatible(of_get_flat_dt_root(), "qcom,msm8974")
+#define machine_is_msm8974()		\
+	of_machine_is_compatible("qcom,msm8974")
+#define machine_is_msm8974_sim()		\
+	of_machine_is_compatible("qcom,msm8974-sim")
+#define machine_is_msm8974_rumi()	\
+	of_machine_is_compatible("qcom,msm8974-rumi")
+#define early_machine_is_msm9625()	\
+	of_flat_dt_is_compatible(of_get_flat_dt_root(), "qcom,msm9625")
+#define machine_is_msm9625()		\
+	of_machine_is_compatible("qcom,msm9625")
 #define early_machine_is_mpq8092()	\
 	of_flat_dt_is_compatible(of_get_flat_dt_root(), "qcom,mpq8092")
-#define early_machine_is_msmzinc()	\
-	of_flat_dt_is_compatible(of_get_flat_dt_root(), "qcom,msmzinc")
+#define machine_is_mpq8092_sim()           \
+	of_machine_is_compatible("qcom,mpq8092-sim")
+#define early_machine_is_msm8226()	\
+	of_flat_dt_is_compatible(of_get_flat_dt_root(), "qcom,msm8226")
+#define machine_is_msm8226()		\
+	of_machine_is_compatible("qcom,msm8226")
+#define machine_is_msm8226_sim()		\
+	of_machine_is_compatible("qcom,msm8226-sim")
 #else
-#define of_board_is_sim()		0
-#define of_board_is_rumi()		0
-#define of_board_is_fluid()		0
-#define of_board_is_liquid()		0
-
+#define early_machine_is_msm8974()	0
 #define machine_is_msm8974()		0
+#define machine_is_msm8974_sim()	0
+#define machine_is_msm8974_rumi()	0
+#define early_machine_is_msm9625()	0
 #define machine_is_msm9625()		0
-#define machine_is_msm8610()		0
-#define machine_is_msm8226()		0
-
-#define early_machine_is_msm8610()	0
 #define early_machine_is_mpq8092()	0
-#define early_machine_is_msmzinc()	0
+#define machine_is_mpq8092_sim()	0
+#define early_machine_is_msm8226()	0
+#define machine_is_msm8226()		0
+#define machine_is_msm8226_sim()	0
+
 #endif
 
 #define PLATFORM_SUBTYPE_SGLTE	6
-#define PLATFORM_SUBTYPE_DSDA	7
+#define PLATFORM_SUBTYPE_DSDA   7
+#define PLATFORM_SUBTYPE_DSDA2	8
+#define PLATFORM_SUBTYPE_SGLTE2	9
 
 enum msm_cpu {
 	MSM_CPU_UNKNOWN = 0,
@@ -97,10 +104,7 @@ enum msm_cpu {
 	MSM_CPU_8625,
 	MSM_CPU_9625,
 	MSM_CPU_8092,
-	MSM_CPU_8226,
-	MSM_CPU_8610,
-	MSM_CPU_8625Q,
-	MSM_CPU_ZINC,
+	MSM_CPU_8226
 };
 
 enum pmic_model {
@@ -429,30 +433,6 @@ static inline int cpu_is_msm8226(void)
 
 	BUG_ON(cpu == MSM_CPU_UNKNOWN);
 	return cpu == MSM_CPU_8226;
-#else
-	return 0;
-#endif
-}
-
-static inline int cpu_is_msm8610(void)
-{
-#ifdef CONFIG_ARCH_MSM8610
-	enum msm_cpu cpu = socinfo_get_msm_cpu();
-
-	BUG_ON(cpu == MSM_CPU_UNKNOWN);
-	return cpu == MSM_CPU_8610;
-#else
-	return 0;
-#endif
-}
-
-static inline int cpu_is_msm8625q(void)
-{
-#ifdef CONFIG_ARCH_MSM8625
-	enum msm_cpu cpu = socinfo_get_msm_cpu();
-
-	BUG_ON(cpu == MSM_CPU_UNKNOWN);
-	return cpu == MSM_CPU_8625Q;
 #else
 	return 0;
 #endif
