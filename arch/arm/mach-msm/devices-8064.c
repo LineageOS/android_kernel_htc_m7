@@ -35,6 +35,7 @@
 #include <mach/msm_rtb.h>
 #include <linux/msm_ion.h>
 #include "clock.h"
+#include "pm.h"
 #include "devices.h"
 #include "footswitch.h"
 #include <mach/msm_watchdog.h>
@@ -96,6 +97,37 @@
 #define AP2MDM_WAKEUP			35
 #define MDM2AP_PBLRDY			46
 
+#define MSM8064_PC_CNTR_PHYS    (APQ8064_IMEM_PHYS + 0x664)
+#define MSM8064_PC_CNTR_SIZE        0x40
+
+static struct resource msm8064_resources_pccntr[] = {
+	{
+		.start  = MSM8064_PC_CNTR_PHYS,
+		.end    = MSM8064_PC_CNTR_PHYS + MSM8064_PC_CNTR_SIZE,
+		.flags  = IORESOURCE_MEM,
+	},  
+};  
+
+struct platform_device msm8064_pc_cntr = {
+	.name       = "pc-cntr",
+	.id     = -1, 
+	.num_resources  = ARRAY_SIZE(msm8064_resources_pccntr),
+	.resource   = msm8064_resources_pccntr,
+};  
+
+static struct msm_pm_sleep_status_data msm_pm_slp_sts_data = {
+	.base_addr = MSM_ACC0_BASE + 0x08, 
+	.cpu_offset = MSM_ACC1_BASE - MSM_ACC0_BASE,
+	.mask = 1UL << 13,
+};  
+
+struct platform_device msm8064_cpu_slp_status = {
+	.name       = "cpu_slp_status",
+	.id     = -1, 
+	.dev = {
+		.platform_data = &msm_pm_slp_sts_data,
+	},  
+};  
 
 struct platform_device msm8064_device_acpuclk = {
 	.name		= "acpuclk-8064",

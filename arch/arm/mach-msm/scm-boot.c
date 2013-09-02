@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -16,11 +16,14 @@
 #include <mach/scm.h>
 #include "scm-boot.h"
 
-int scm_set_boot_addr(void *addr, int flags)
+/*
+ * Set the cold/warm boot address for one of the CPU cores.
+ */
+int scm_set_boot_addr(phys_addr_t addr, unsigned int flags)
 {
 	struct {
 		unsigned int flags;
-		void *addr;
+		unsigned long addr;
 	} cmd;
 
 	cmd.addr = addr;

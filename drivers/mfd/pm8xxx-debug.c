@@ -1743,7 +1743,7 @@ extern int free_vreg_buffer(void);
 
 static int list_sleep_vregs_show(struct seq_file *m, void *unused)
 {
-	print_vreg_buffer(m);
+	//print_vreg_buffer(m);
 	return 0;
 }
 
@@ -1759,7 +1759,7 @@ static int list_sleep_vregs_open(struct inode *inode, struct file *file)
 
 static int list_sleep_vregs_release(struct inode *inode, struct file *file)
 {
-	free_vreg_buffer();
+	//free_vreg_buffer();
 	return single_release(inode, file);
 }
 
@@ -1768,7 +1768,7 @@ extern int free_pmic_reg_buffer(void);
 
 static int list_sleep_pmic_regs_show(struct seq_file *m, void *unused)
 {
-	print_pmic_reg_buffer(m);
+	//print_pmic_reg_buffer(m);
 	return 0;
 }
 
@@ -1784,7 +1784,7 @@ static int list_sleep_pmic_regs_open(struct inode *inode, struct file *file)
 
 static int list_sleep_pmic_regs_release(struct inode *inode, struct file *file)
 {
-	free_pmic_reg_buffer();
+	//free_pmic_reg_buffer();
 	return single_release(inode, file);
 }
 

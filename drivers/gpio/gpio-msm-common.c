@@ -659,7 +659,7 @@ static int list_gpios_show(struct seq_file *m, void *unused)
 
 static int list_sleep_gpios_show(struct seq_file *m, void *unused)
 {
-	print_gpio_buffer(m);
+	//print_gpio_buffer(m);
 	return 0;
 }
 
@@ -675,7 +675,7 @@ static int list_sleep_gpios_open(struct inode *inode, struct file *file)
 
 static int list_sleep_gpios_release(struct inode *inode, struct file *file)
 {
-	free_gpio_buffer();
+	//free_gpio_buffer();
 	return single_release(inode, file);
 }
 
