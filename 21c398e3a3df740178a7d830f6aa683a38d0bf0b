@@ -16,6 +16,24 @@
       "revId": "21c398e3a3df740178a7d830f6aa683a38d0bf0b",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "da1255d7_0c5fb70f",
+        "filename": "arch/arm/configs/cyanogenmod_dlx_defconfig",
+        "patchSetId": 14
+      },
+      "lineNbr": 718,
+      "author": {
+        "id": 3671
+      },
+      "writtenOn": "2013-09-04T22:49:57Z",
+      "side": 1,
+      "message": "Yep. Init changes it later anyway. Set to performance here for bootup.",
+      "parentUuid": "da1255d7_8c7287ac",
+      "revId": "21c398e3a3df740178a7d830f6aa683a38d0bf0b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
     }
   ]
 }
