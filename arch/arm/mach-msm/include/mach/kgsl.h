@@ -79,6 +79,9 @@ struct kgsl_device_platform_data {
 	int iommu_count;
 	struct msm_dcvs_core_info *core_info;
 	unsigned int chipid;
+#ifdef CONFIG_MACH_M4_UL
+	unsigned int snapshot_address;
+#endif
 };
 
 #endif
