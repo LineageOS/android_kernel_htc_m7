@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "ba076199_a86d3bce",
+        "filename": "arch/arm/mach-msm/include/mach/htc_usb.h",
+        "patchSetId": 14
+      },
+      "lineNbr": 66,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2013-09-05T07:00:11Z",
+      "side": 0,
+      "message": "are these removals necessary?",
+      "revId": "cd07d32725f7f2be84ad5ecfda90e8f99bc98f45",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
