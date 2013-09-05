@@ -16,6 +16,24 @@
       "revId": "cd07d32725f7f2be84ad5ecfda90e8f99bc98f45",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "ba076199_48659fdf",
+        "filename": "arch/arm/mach-msm/include/mach/htc_usb.h",
+        "patchSetId": 14
+      },
+      "lineNbr": 66,
+      "author": {
+        "id": 3671
+      },
+      "writtenOn": "2013-09-05T07:06:50Z",
+      "side": 0,
+      "message": "Nope\nI had copied dlx\u0027s htc_usb.h in (since you don\u0027t use it) and now I don\u0027t use it anymore either. I\u0027ll revert this file.",
+      "parentUuid": "ba076199_a86d3bce",
+      "revId": "cd07d32725f7f2be84ad5ecfda90e8f99bc98f45",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
     }
   ]
 }

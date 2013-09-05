@@ -51,6 +51,24 @@
       "revId": "21c398e3a3df740178a7d830f6aa683a38d0bf0b",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "ba076199_28626bd9",
+        "filename": "drivers/video/msm/mdp.c",
+        "patchSetId": 14
+      },
+      "lineNbr": 2860,
+      "author": {
+        "id": 3671
+      },
+      "writtenOn": "2013-09-05T07:06:50Z",
+      "side": 1,
+      "message": "The changes to this file fix our splash screen getting all wonky.",
+      "parentUuid": "ba076199_c8786f92",
+      "revId": "21c398e3a3df740178a7d830f6aa683a38d0bf0b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
     }
   ]
 }
