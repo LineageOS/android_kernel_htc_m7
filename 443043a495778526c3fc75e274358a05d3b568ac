@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "ba076199_88a957e2",
+        "filename": "arch/arm/mach-msm/board-monarudo-display.c",
+        "patchSetId": 15
+      },
+      "lineNbr": 253,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2013-09-05T07:13:30Z",
+      "side": 1,
+      "message": "have you tried disabling cont splash?",
+      "revId": "443043a495778526c3fc75e274358a05d3b568ac",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
