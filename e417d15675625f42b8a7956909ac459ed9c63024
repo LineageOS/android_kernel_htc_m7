@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "ba076199_cecbd71d",
+        "filename": "arch/arm/configs/cyanogenmod_dlx_defconfig",
+        "patchSetId": 1
+      },
+      "lineNbr": 3411,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2013-09-06T12:12:28Z",
+      "side": 1,
+      "message": "no point in changing this",
+      "revId": "e417d15675625f42b8a7956909ac459ed9c63024",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
