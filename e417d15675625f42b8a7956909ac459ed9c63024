@@ -16,6 +16,24 @@
       "revId": "e417d15675625f42b8a7956909ac459ed9c63024",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "ba076199_8ed5dfba",
+        "filename": "arch/arm/configs/cyanogenmod_dlx_defconfig",
+        "patchSetId": 1
+      },
+      "lineNbr": 3411,
+      "author": {
+        "id": 3671
+      },
+      "writtenOn": "2013-09-06T12:14:26Z",
+      "side": 1,
+      "message": "i know, just copying m7 here, less lines when you diff\n\nand keeps the 3rd party kernel builders honest \u003dP",
+      "parentUuid": "ba076199_cecbd71d",
+      "revId": "e417d15675625f42b8a7956909ac459ed9c63024",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
     }
   ]
 }
