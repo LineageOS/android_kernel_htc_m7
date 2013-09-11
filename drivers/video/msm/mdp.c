@@ -2973,13 +2973,15 @@ static int mdp_probe(struct platform_device *pdev)
 
 			mdp_clk_ctrl(1);
 
-			mdp_pdata->splash_screen_size =
-				inpdw(MDP_BASE + 0x90004);
-			mdp_pdata->splash_screen_size =
-				(((mdp_pdata->splash_screen_size >> 16) &
-				  0x00000FFF) * (
-					  mdp_pdata->splash_screen_size &
-					  0x00000FFF)) * bpp;
+			if (!mdp_pdata->splash_screen_size) {
+				mdp_pdata->splash_screen_size =
+					inpdw(MDP_BASE + 0x90004);
+				mdp_pdata->splash_screen_size =
+					(((mdp_pdata->splash_screen_size >> 16) &
+					  0x00000FFF) * (
+						  mdp_pdata->splash_screen_size &
+						  0x00000FFF)) * bpp;
+			}
 
 			mdp_pdata->splash_screen_addr =
 				inpdw(MDP_BASE + 0x90008);
