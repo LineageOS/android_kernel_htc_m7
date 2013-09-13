@@ -467,20 +467,12 @@ static struct mipi_dsi_platform_data mipi_dsi_pdata = {
 static struct mipi_dsi_panel_platform_data *mipi_monarudo_pdata;
 
 static struct dsi_cmd_desc *video_on_cmds = NULL;
+static struct dsi_cmd_desc *display_on_cmds = NULL;
 static struct dsi_cmd_desc *display_off_cmds = NULL;
-static struct dsi_cmd_desc *backlight_cmds = NULL;
-static struct dsi_cmd_desc *color_en_on_cmds = NULL;
-static struct dsi_cmd_desc *color_en_off_cmds = NULL;
 
 static int video_on_cmds_count = 0;
+static int display_on_cmds_count = 0;
 static int display_off_cmds_count = 0;
-static int backlight_cmds_count = 0;
-static int color_en_on_cmds_count = 0;
-static int color_en_off_cmds_count = 0;
-
-static unsigned int pwm_min = 6;
-static unsigned int pwm_default = 81 ;
-static unsigned int pwm_max = 255;
 
 static char enter_sleep[2] = {0x10, 0x00}; /* DTYPE_DCS_WRITE */
 static char exit_sleep[2] = {0x11, 0x00}; /* DTYPE_DCS_WRITE */
@@ -518,7 +510,11 @@ static char BackLight_Control_6[8]= {
 static char Manufacture_Command_setting[4] = {0xD6, 0x01};
 static char nop[4] = {0x00, 0x00};
 static char CABC[2] = {0x55, 0x01};
+static char hsync_output[4] = {0xC3, 0x01, 0x00, 0x10};
+static char protect_on[4] = {0xB0, 0x03};
 static char TE_OUT[4] = {0x35, 0x00};
+static char deep_standby_off[2] = {0xB1, 0x01};
+
 
 static struct dsi_cmd_desc sharp_video_on_cmds[] = {
 	{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(interface_setting_0), interface_setting_0},
@@ -535,18 +531,36 @@ static struct dsi_cmd_desc sharp_video_on_cmds[] = {
 	{DTYPE_DCS_WRITE,  1, 0, 0, 0, sizeof(exit_sleep), exit_sleep},
 };
 
+static struct dsi_cmd_desc sony_video_on_cmds[] = {
+	{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(interface_setting_0), interface_setting_0},
+	{DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(nop), nop},
+	{DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(nop), nop},
+	{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(hsync_output), hsync_output},
+	{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(Color_enhancement), Color_enhancement},
+	//{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(Outline_Sharpening_Control), Outline_Sharpening_Control},
+	{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(BackLight_Control_6), BackLight_Control_6},
+	{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(Manufacture_Command_setting), Manufacture_Command_setting},
+	{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(protect_on), protect_on},
+	{DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(nop), nop},
+	{DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(nop), nop},
+	{DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(CABC), CABC},
+	{DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(write_control_display), write_control_display},
+	{DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(TE_OUT), TE_OUT},
+	{DTYPE_DCS_WRITE, 1, 0, 0, 0, sizeof(exit_sleep), exit_sleep},
+};
+
 static struct dsi_cmd_desc sharp_display_off_cmds[] = {
 	{DTYPE_DCS_LWRITE, 1, 0, 0, 20, sizeof(display_off), display_off},
 	{DTYPE_DCS_LWRITE, 1, 0, 0, 50, sizeof(enter_sleep), enter_sleep}
 };
 
-static char renesas_color_en_on[2]= {0xCA, 0x01};
-static char renesas_color_en_off[2]= {0xCA, 0x00};
-static struct dsi_cmd_desc sharp_renesas_color_enhance_on_cmds[] = {
-	{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(renesas_color_en_on), renesas_color_en_on},
-};
-static struct dsi_cmd_desc sharp_renesas_color_enhance_off_cmds[] = {
-	{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(renesas_color_en_off), renesas_color_en_off},
+static struct dsi_cmd_desc sony_display_off_cmds[] = {
+	{DTYPE_DCS_LWRITE, 1, 0, 0, 0, sizeof(display_off), display_off},
+	{DTYPE_DCS_LWRITE, 1, 0, 0, 48, sizeof(enter_sleep), enter_sleep},
+	{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(interface_setting_0), interface_setting_0},
+	{DTYPE_DCS_LWRITE, 1, 0, 0, 0, sizeof(nop), nop},
+	{DTYPE_DCS_LWRITE, 1, 0, 0, 0, sizeof(nop), nop},
+	{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(deep_standby_off), deep_standby_off},
 };
 
 static struct i2c_client *blk_pwm_client;
@@ -568,8 +582,8 @@ static int monarudo_lcd_on(struct platform_device *pdev)
 		PR_DISP_DEBUG("%s: turning on the display.\n", __func__);
 
 		if (mipi->mode == DSI_VIDEO_MODE) {
-			cmdreq.cmds = sharp_video_on_cmds;
-			cmdreq.cmds_cnt = ARRAY_SIZE(sharp_video_on_cmds);
+			cmdreq.cmds = video_on_cmds;
+			cmdreq.cmds_cnt = video_on_cmds_count;
 			cmdreq.flags = CMD_REQ_COMMIT;
 			cmdreq.rlen = 0;
 			cmdreq.cb = NULL;
@@ -627,8 +641,8 @@ static int monarudo_display_on(struct platform_device *pdev)
 
 	PR_DISP_DEBUG("%s: turning on the display.\n", __func__);
 
-	cmdreq.cmds = renesas_display_on_cmds;
-	cmdreq.cmds_cnt = ARRAY_SIZE(renesas_display_on_cmds);
+	cmdreq.cmds = display_on_cmds;
+	cmdreq.cmds_cnt = display_on_cmds_count;
 	cmdreq.flags = CMD_REQ_COMMIT;
 	cmdreq.rlen = 0;
 	cmdreq.cb = NULL;
@@ -645,8 +659,8 @@ static int monarudo_display_off(struct platform_device *pdev)
 
 	mfd = platform_get_drvdata(pdev);
 
-	cmdreq.cmds = sharp_display_off_cmds;
-	cmdreq.cmds_cnt = ARRAY_SIZE(sharp_display_off_cmds);
+	cmdreq.cmds = display_off_cmds;
+	cmdreq.cmds_cnt = display_off_cmds_count;
 	cmdreq.flags = CMD_REQ_COMMIT;
 	cmdreq.rlen = 0;
 	cmdreq.cb = NULL;
@@ -879,27 +893,13 @@ static int __init mipi_video_sharp_init(void)
 		pr_err("%s: failed to register device!\n", __func__);
 
 	strncat(ptype, "PANEL_ID_DLX_SHARP_RENESAS", ptype_len);
+
 	video_on_cmds = sharp_video_on_cmds;
 	video_on_cmds_count = ARRAY_SIZE(sharp_video_on_cmds);
-
+	display_on_cmds = renesas_display_on_cmds;
+	display_on_cmds_count = ARRAY_SIZE(renesas_display_on_cmds);
 	display_off_cmds = sharp_display_off_cmds;
 	display_off_cmds_count = ARRAY_SIZE(sharp_display_off_cmds);
-	backlight_cmds = renesas_cmd_backlight_cmds;
-	backlight_cmds_count = ARRAY_SIZE(renesas_cmd_backlight_cmds);
-#ifdef CABC_DIMMING_SWITCH
-	dim_on_cmds = renesas_dim_on_cmds;
-	dim_on_cmds_count = ARRAY_SIZE(renesas_dim_on_cmds);
-	dim_off_cmds = renesas_dim_off_cmds;
-	dim_off_cmds_count = ARRAY_SIZE(renesas_dim_off_cmds);
-#endif
-	color_en_on_cmds = sharp_renesas_color_enhance_on_cmds;
-	color_en_on_cmds_count = ARRAY_SIZE(sharp_renesas_color_enhance_on_cmds);
-	color_en_off_cmds = sharp_renesas_color_enhance_off_cmds;
-	color_en_off_cmds_count = ARRAY_SIZE(sharp_renesas_color_enhance_off_cmds);
-
-	pwm_min = 13;
-	pwm_default = 82;
-	pwm_max = 255;
 
 	PR_DISP_INFO("%s\n", __func__);
 	return ret;
@@ -909,6 +909,90 @@ static const struct i2c_device_id pwm_i2c_id[] = {
 	{ "pwm_i2c", 0 },
 	{ }
 };
+
+static int __init mipi_video_sony_init(void)
+{
+	int ret;
+
+	pinfo.xres = 1080;
+	pinfo.yres = 1920;
+	pinfo.type = MIPI_VIDEO_PANEL;
+	pinfo.pdest = DISPLAY_1;
+	pinfo.wait_cycle = 0;
+	pinfo.bpp = 24;
+	pinfo.width = 61;
+	pinfo.height = 110;
+	pinfo.camera_backlight = 176;
+
+	pinfo.lcdc.h_back_porch = 50;
+	pinfo.lcdc.h_front_porch = 100;
+	pinfo.lcdc.h_pulse_width = 10;
+	pinfo.lcdc.v_back_porch = 3;
+	pinfo.lcdc.v_front_porch = 3;
+	pinfo.lcdc.v_pulse_width = 2;
+
+	pinfo.lcd.v_back_porch = 3;
+	pinfo.lcd.v_front_porch = 3;
+	pinfo.lcd.v_pulse_width = 2;
+
+	pinfo.lcd.vsync_enable = TRUE;
+	pinfo.lcd.hw_vsync_mode = TRUE;
+
+	pinfo.lcd.primary_vsync_init = pinfo.yres;
+	pinfo.lcd.primary_rdptr_irq = 0;
+	pinfo.lcd.primary_start_pos = pinfo.yres +
+		pinfo.lcd.v_back_porch + pinfo.lcd.v_front_porch - 1;
+
+	pinfo.lcdc.border_clr = 0;	/* blk */
+	pinfo.lcdc.underflow_clr = 0xff;	/* blue */
+	pinfo.lcdc.hsync_skew = 0;
+	pinfo.bl_max = 255;
+	pinfo.bl_min = 1;
+	pinfo.fb_num = 2;
+	pinfo.clk_rate = 848000000;
+
+	pinfo.mipi.mode = DSI_VIDEO_MODE;
+	pinfo.mipi.pulse_mode_hsa_he = TRUE;
+	pinfo.mipi.hfp_power_stop = FALSE;
+	pinfo.mipi.hbp_power_stop = FALSE;
+	pinfo.mipi.hsa_power_stop = TRUE;
+	pinfo.mipi.eof_bllp_power_stop = TRUE;
+	pinfo.mipi.bllp_power_stop = TRUE;
+	pinfo.mipi.traffic_mode = DSI_NON_BURST_SYNCH_EVENT;
+	pinfo.mipi.dst_format = DSI_VIDEO_DST_FORMAT_RGB888;
+	pinfo.mipi.vc = 0;
+	pinfo.mipi.rgb_swap = DSI_RGB_SWAP_RGB;
+	pinfo.mipi.data_lane0 = TRUE;
+	pinfo.mipi.data_lane1 = TRUE;
+	pinfo.mipi.data_lane2 = TRUE;
+	pinfo.mipi.data_lane3 = TRUE;
+
+	pinfo.mipi.tx_eot_append = TRUE;
+	pinfo.mipi.t_clk_post = 0x02;
+	pinfo.mipi.t_clk_pre = 0x2C;
+	pinfo.mipi.stream = 0; /* dma_p */
+	pinfo.mipi.mdp_trigger = DSI_CMD_TRIGGER_SW;
+	pinfo.mipi.dma_trigger = DSI_CMD_TRIGGER_SW;
+	pinfo.mipi.frame_rate = 60;
+	pinfo.mipi.dsi_phy_db = &dsi_video_mode_phy_db;
+	pinfo.mipi.esc_byte_ratio = 2;
+
+	ret = mipi_monarudo_device_register(&pinfo, MIPI_DSI_PRIM,
+						MIPI_DSI_PANEL_FWVGA_PT);
+	if (ret)
+		pr_err("%s: failed to register device!\n", __func__);
+
+	strncat(ptype, "PANEL_ID_DLX_SONY_RENESAS", ptype_len);
+
+	video_on_cmds = sony_video_on_cmds;
+	video_on_cmds_count = ARRAY_SIZE(sony_video_on_cmds);
+	display_on_cmds = renesas_display_on_cmds;
+	display_on_cmds_count = ARRAY_SIZE(renesas_display_on_cmds);
+	display_off_cmds = sony_display_off_cmds;
+	display_off_cmds_count = ARRAY_SIZE(sony_display_off_cmds);
+
+	return ret;
+}
 
 static int pwm_i2c_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
@@ -971,9 +1055,12 @@ static int __init monarudo_panel_init(void)
 
 	if (panel_type == PANEL_ID_DLX_SHARP_RENESAS) {
 		mipi_video_sharp_init();
-		printk(KERN_INFO "match PANEL_ID_DLX_SHARP_RENESAS panel_type\n");
+		PR_DISP_INFO("match PANEL_ID_DLX_SHARP_RENESAS panel_type\n");
+	} else if (panel_type == PANEL_ID_DLX_SONY_RENESAS) {
+		mipi_video_sony_init();
+		PR_DISP_INFO("match PANEL_ID_DLX_SONY_RENESAS panel_type\n");
 	} else {
-		printk(KERN_INFO "Mis-match panel_type\n");
+		PR_DISP_INFO("Mis-match panel_type = %x\n", panel_type);
 		return -ENODEV;
 	}
 
