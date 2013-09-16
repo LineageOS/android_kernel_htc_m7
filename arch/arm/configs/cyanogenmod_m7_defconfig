@@ -1546,6 +1546,7 @@ CONFIG_WLAN=y
 # CONFIG_QUALCOMM_WLAN is not set
 # CONFIG_ATH_COMMON is not set
 CONFIG_BCMDHD=m
+# CONFIG_BCM4339 is not set
 CONFIG_BCMDHD_FW_PATH="/system/etc/firmware/fw_bcm4335_b0.bin"
 CONFIG_BCMDHD_NVRAM_PATH="/etc/calibration"
 CONFIG_DHD_USE_STATIC_BUF=y
