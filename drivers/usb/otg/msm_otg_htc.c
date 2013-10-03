@@ -2965,7 +2965,7 @@ void msm_otg_set_vbus_state(int online)
 }
 
 
-#if (defined(CONFIG_USB_OTG) && defined(CONFIG_USB_OTG_HOST))
+#if 1
 void msm_otg_set_id_state(int id)
 {
 	struct msm_otg *motg = the_msm_otg;
@@ -3356,7 +3356,7 @@ static void msm_otg_debugfs_cleanup(void)
 	debugfs_remove_recursive(msm_otg_dbg_root);
 }
 
-#if (defined(CONFIG_USB_OTG) && defined(CONFIG_USB_OTG_HOST))
+#if 1
 static struct t_usb_host_status_notifier usb_host_status_notifier = {
 	.name = "usb_host",
 	.func = usb_host_cable_detect,
@@ -3796,7 +3796,7 @@ static int __init msm_otg_probe(struct platform_device *pdev)
 #endif
 	}
 
-#if (defined(CONFIG_USB_OTG) && defined(CONFIG_USB_OTG_HOST))
+#if 1
 	usb_host_detect_register_notifier(&usb_host_status_notifier);
 #endif
 
