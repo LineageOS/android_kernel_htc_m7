@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "5a43c5e1_20812490",
+        "filename": "drivers/usb/otg/msm_otg_htc.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 2968,
+      "author": {
+        "id": 3671
+      },
+      "writtenOn": "2013-10-08T14:27:01Z",
+      "side": 1,
+      "message": "Why the #if 1  here and not in the other files?",
+      "revId": "708c7f431150a06a565856a6bd15127616481c64",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
