@@ -1735,21 +1735,56 @@ void msm_hsusb_setup_gpio(enum usb_otg_state state)
 }
 #endif
 
+#define PMIC_GPIO_DP		27    /* PMIC GPIO for D+ change */
+#define PMIC_GPIO_DP_IRQ	PM8921_GPIO_IRQ(PM8921_IRQ_BASE, PMIC_GPIO_DP)
+#define MSM_MPM_PIN_USB1_OTGSESSVLD	40
+
 static int msm_hsusb_vbus_power(bool on);
 static struct msm_otg_platform_data msm_otg_pdata = {
 	.mode			= USB_OTG,
 	.otg_control		= OTG_PMIC_CONTROL,
 	.phy_type		= SNPS_28NM_INTEGRATED_PHY,
-/*	.pmic_id_irq		= PM8921_USB_ID_IN_IRQ(PM8921_IRQ_BASE),*/
+	.pmic_id_irq		= PM8921_USB_ID_IN_IRQ(PM8921_IRQ_BASE),
 	.vbus_power		= msm_hsusb_vbus_power,
-	.power_budget		= 500,
+	.power_budget		= 750,
 	.bus_scale_table        = &usb_bus_scale_pdata,
 	.phy_init_seq           = phy_init_seq,
 #ifdef CONFIG_SUPPORT_USB_SPEAKER
 	.setup_gpio		= msm_hsusb_setup_gpio,
 #endif
-	.ldo_power_collapse     = POWER_COLLAPSE_LDO1V8,
+	.mpm_otgsessvld_int	= MSM_MPM_PIN_USB1_OTGSESSVLD,
 };
+
+static struct msm_usb_host_platform_data msm_ehci_host_pdata3 = {
+	.power_budget = 500,
+};
+
+#ifdef CONFIG_USB_EHCI_MSM_HOST4
+static struct msm_usb_host_platform_data msm_ehci_host_pdata4;
+#endif
+
+static void __init apq8064_ehci_host_init(void)
+{
+	if (machine_is_apq8064_liquid() || machine_is_mpq8064_cdp() ||
+	   machine_is_mpq8064_hrd() || machine_is_mpq8064_dtv()) {
+		if (machine_is_apq8064_liquid())
+			msm_ehci_host_pdata3.dock_connect_irq =
+			   PM8921_MPP_IRQ(PM8921_IRQ_BASE, 9);
+		else
+			msm_ehci_host_pdata3.pmic_gpio_dp_irq =
+			   PMIC_GPIO_DP_IRQ;
+
+		apq8064_device_ehci_host3.dev.platform_data =
+		    &msm_ehci_host_pdata3;
+		platform_device_register(&apq8064_device_ehci_host3);
+
+#ifdef CONFIG_USB_EHCI_MSM_HOST4
+	apq8064_device_ehci_host4.dev.platform_data =
+	    &msm_ehci_host_pdata4;
+	platform_device_register(&apq8064_device_ehci_host4);
+#endif
+	}
+}
 
 static int64_t monarudo_get_usbid_adc(void)
 {
@@ -4745,6 +4780,7 @@ static void __init monarudo_common_init(void)
 			msm_rpmrs_levels[0].latency_us;
 
 	apq8064_device_otg.dev.platform_data = &msm_otg_pdata;
+	apq8064_ehci_host_init();
 	monarudo_init_buses();
 #ifdef CONFIG_HTC_BATT_8960
 	htc_battery_cell_init(htc_battery_cells, ARRAY_SIZE(htc_battery_cells));
