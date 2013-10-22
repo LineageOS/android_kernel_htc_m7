@@ -216,6 +216,7 @@ struct msm_fb_data_type {
 	unsigned char *copy_splash_phys;
 	uint32 sec_mapped;
 	uint32 sec_active;
+	uint32 max_map_size;
 
 	struct workqueue_struct *dimming_wq;
 	struct work_struct dimming_work;
