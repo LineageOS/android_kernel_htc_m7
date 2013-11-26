@@ -439,6 +439,7 @@ struct snd_pcm_str {
 	struct snd_info_entry *proc_xrun_debug_entry;
 #endif
 #endif
+	struct snd_kcontrol *vol_kctl; 
 };
 
 struct snd_pcm {
@@ -972,5 +973,24 @@ static inline void snd_pcm_limit_isa_dma_size(int dma, size_t *max)
 #define PCM_RUNTIME_CHECK(sub) (!(sub) || !(sub)->runtime)
 
 const char *snd_pcm_format_name(snd_pcm_format_t format);
+
+struct snd_pcm_volume_elem {
+	int volume;
+};
+
+struct snd_pcm_volume {
+	struct snd_pcm *pcm;	
+	int stream;		
+	struct snd_kcontrol *kctl;
+	const struct snd_pcm_volume_elem *volume;
+	int max_length;
+	void *private_data;	
+};
+
+int snd_pcm_add_volume_ctls(struct snd_pcm *pcm, int stream,
+			   const struct snd_pcm_volume_elem *volume,
+			   int max_length,
+			   unsigned long private_value,
+			   struct snd_pcm_volume **info_ret);
 
 #endif 

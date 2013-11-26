@@ -97,6 +97,7 @@
 #include <net/inet_common.h>
 
 
+
 struct icmp_bxm {
 	struct sk_buff *skb;
 	int offset;
@@ -696,7 +697,7 @@ static void icmp_redirect(struct sk_buff *skb)
 	if (iph->protocol == IPPROTO_ICMP &&
 	    iph->ihl >= 5 &&
 	    pskb_may_pull(skb, (iph->ihl<<2)+8)) {
-		ping_err(skb, icmp_hdr(skb)->un.gateway);
+		ping_v4_err(skb, icmp_hdr(skb)->un.gateway);
 	}
 
 out:
@@ -866,6 +867,7 @@ int icmp_rcv(struct sk_buff *skb)
 	}
 
 	icmp_pointers[icmph->type].handler(skb);
+
 
 drop:
 	kfree_skb(skb);
