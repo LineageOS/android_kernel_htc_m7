@@ -22,7 +22,6 @@
 #define SCM_SVC_FUSE			0x8
 #define SCM_SVC_PWR			0x9
 #define SCM_SVC_CP			0xC
-#define SCM_SVC_MP			0xC
 #define SCM_SVC_DCVS			0xD
 #define SCM_SVC_TZSCHEDULER		0xFC
 #define SCM_SVC_OEM				0xFE
@@ -51,6 +50,12 @@
 #define ITEM_SD_KEY_DECRYPT		0x34
 #define ITEM_SEC_ATS			0x39
 #define ITEM_REMOTE_MSG			0x3A
+#define ITEM_GDRIVE_DATA        0x3C
+#define ITEM_VOUCHER_SIG_DATA   0x3E
+
+#define ITEM_FP_KEY_ENCRYPT		0x27
+#define ITEM_FP_KEY_DECRYPT		0x29
+
 
 typedef struct {
 	u8 enable;

@@ -1074,6 +1074,12 @@ config HTC_ONMODE_CHARGING
 	help
 		support on mode charing icon
 
+config BUILD_EDIAG
+	bool "Build in embedded diag fixes"
+	default n
+	help
+	  For embedded diag we need to do some additional fixes.
+
 config HTC_FD_MONITOR
 	bool "fd operation monitor mechanism"
 	default n
@@ -1376,12 +1382,6 @@ config MSM_SMD_DEBUG
 	help
 	  Support for debugging the SMD for communication
 	  between the ARM9 and ARM11
-
-config MSM_SEND_SIGNAL_DEBUG
-        bool "MSM send_signal debug support"
-        help
-          This option enables kernel debug log and dump_stack
-          if any processes send signal to assinged processes
 
 config MSM_SDIO_AL
 	depends on ((ARCH_MSM7X30 || MACH_MSM8X60_FUSN_FFA || MACH_TYPE_MSM8X60_FUSION) && HAS_WAKELOCK)
@@ -2481,6 +2481,7 @@ config MSM_OCMEM
 
 config MSM_RTB
 	bool "Register tracing"
+	depends on (!METRICO_TP || METRICO_TP!=y)
 	help
 	  Add support for logging different events to a small uncached
 	  region. This is designed to aid in debugging reset cases where the
@@ -2584,6 +2585,14 @@ config MSM_L2_ERP_2BIT_PANIC
 
 	  For production builds, it may be acceptable to say 'N' here, since
 	  an uncorrectable error might not necessarily cause further problems.
+
+config IGNORE_L2_FALSE_ALARM
+	bool "Ignore harmless L2 port error"
+	depends on MSM_CACHE_ERP
+	default y
+	help
+	  L2 cache will sometimes generate port error which is consider harmless.
+	  Ignore the error if trigger rate is low.
 
 config MSM_DCVS
 	bool "Use MSM DCVS for CPU/GPU Frequency control"
@@ -2731,5 +2740,9 @@ config MSM_CPU_PWRCTL
 	  stand alone power collapse operation. Selecting this option
 	  ensures that they are always off.
 
+config IOEXTENDER
+	default n
+	bool "Enable IOEXTENDER feature"
+	help
+	 To support IOEXTENDER feature
 endif
-
