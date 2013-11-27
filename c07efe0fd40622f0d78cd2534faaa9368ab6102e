@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "fa80f949_15ad5688",
+        "filename": "include/media/msm_camera.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 1655,
+      "author": {
+        "id": 6351
+      },
+      "writtenOn": "2013-11-27T09:58:00Z",
+      "side": 1,
+      "message": "I think that the #ifndef CONFIG_MACH_MONARUDO needs to added back here as well.",
+      "revId": "c07efe0fd40622f0d78cd2534faaa9368ab6102e",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
