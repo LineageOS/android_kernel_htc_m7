@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "fa80f949_58ca3551",
+        "filename": "drivers/video/msm/vidc/1080p/ddl/vcd_ddl_properties.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 2269,
+      "author": {
+        "id": 6351
+      },
+      "writtenOn": "2013-11-27T16:04:17Z",
+      "side": 1,
+      "message": "The mako kernel has a slightly different commit which sets\n\nmin_dpb \u003d decoder-\u003emin_dpb_num;\n\nin this warning case.  That seemed like a slightly better version but I wasn\u0027t confident enough to push up the commit.",
+      "revId": "2c036a337f627978346c1624be156082bfe8b1bc",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
