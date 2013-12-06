@@ -2000,6 +2000,9 @@ int cpufreq_unregister_driver(struct cpufreq_driver *driver)
 }
 EXPORT_SYMBOL_GPL(cpufreq_unregister_driver);
 
+static struct kset *cpufreq_kset;
+static const struct kset_uevent_ops cpufreq_uevent_ops = { 0 };
+
 static int __init cpufreq_core_init(void)
 {
 	int cpu;
@@ -2014,6 +2017,17 @@ static int __init cpufreq_core_init(void)
 
 	cpufreq_global_kobject = kobject_create_and_add("cpufreq", &cpu_subsys.dev_root->kobj);
 	BUG_ON(!cpufreq_global_kobject);
+
+	cpufreq_kset = kset_create_and_add("cpufreqks", &cpufreq_uevent_ops, NULL);
+	BUG_ON(cpufreq_kset == NULL);
+
+	/* This is a very nasty hack.  Since we never actually do anything
+	 * with this kobject other than to generate a uevent (or attach other
+	 * objects), it appears be safe to slap in a new kset here after the fact.
+	 * But this is REALLY breaking the kobject / kset API.
+	 */
+	cpufreq_global_kobject->kset = cpufreq_kset;
+
 	register_syscore_ops(&cpufreq_syscore_ops);
 
 	return 0;
