@@ -50,7 +50,7 @@ static int pm8xxx_vib_set_on(struct pm8xxx_vib_pwm *vib)
 {
 	int rc = 0;
 
-	VIB_PWM_INFO("%s \n",__func__);
+	VIB_PWM_DBG("%s \n",__func__);
 
 
 		if (switch_state == 0){
@@ -96,7 +96,7 @@ static int pm8xxx_vib_set_on(struct pm8xxx_vib_pwm *vib)
 static int pm8xxx_vib_set_off(struct pm8xxx_vib_pwm *vib)
 {
 	int rc = 0;
-	VIB_PWM_INFO("%s \n",__func__);
+	VIB_PWM_DBG("%s \n",__func__);
 
 		if (vib->pwm_gpio) {
 
@@ -140,7 +140,7 @@ static void pm8xxx_vib_enable(struct timed_output_dev *dev, int value)
 {
 	struct pm8xxx_vib_pwm *vib = container_of(dev, struct pm8xxx_vib_pwm,
 					 timed_dev);
-	VIB_PWM_INFO("%s vibrate period: %d msec\n",__func__,value);
+	VIB_PWM_DBG("%s vibrate period: %d msec\n",__func__,value);
 
 retry:
 
@@ -184,7 +184,7 @@ static enum hrtimer_restart pm8xxx_vib_timer_func(struct hrtimer *timer)
 	int rc;
 	struct pm8xxx_vib_pwm *vib = container_of(timer, struct pm8xxx_vib_pwm,
 							 vib_timer);
-	VIB_PWM_INFO("%s \n",__func__);
+	VIB_PWM_DBG("%s \n",__func__);
 
 	rc = gpio_direction_output(vib->ena_gpio, DISABLE_AMP);
 	if (rc < 0) {
