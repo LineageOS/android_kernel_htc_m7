@@ -518,5 +518,6 @@ void __init monarudo_init_mmc(void)
 
 	apq8064_add_sdcc(1, monarudo_sdc1_pdata);
 	apq8064_add_sdcc(3, &monarudo_wifi_data);
+	apq8064_add_uio();
 	//reg_set_l7_optimum_mode();
 }
