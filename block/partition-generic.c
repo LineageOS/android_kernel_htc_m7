@@ -20,6 +20,8 @@
 
 #include "partitions/check.h"
 
+#include <mach/board.h>
+
 #ifdef CONFIG_BLK_DEV_MD
 extern void md_autodetect_dev(dev_t dev);
 #endif
@@ -329,6 +331,12 @@ struct hd_struct *add_partition(struct gendisk *disk, int partno,
 		dev_set_name(pdev, "%sp%d", dname, partno);
 	else
 		dev_set_name(pdev, "%s%d", dname, partno);
+
+	if (!strncmp(dev_name(pdev), "mmcblk0p", 8)) {
+		const char *pname = get_partition_name_by_num(p->partno);
+		if (pname)
+			snprintf(p->info->volname, PARTITION_META_INFO_VOLNAMELTH, pname);
+	}
 
 	device_initialize(pdev);
 	pdev->class = &block_class;
