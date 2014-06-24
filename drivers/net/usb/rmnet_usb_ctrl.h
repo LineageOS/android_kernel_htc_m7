@@ -61,6 +61,7 @@ struct rmnet_ctrl_dev {
 	bool			resp_available;
 
 	unsigned int		mdm_wait_timeout;
+	unsigned long		connected_jiffies;
 
 	/*counters*/
 	unsigned int		snd_encap_cmd_cnt;

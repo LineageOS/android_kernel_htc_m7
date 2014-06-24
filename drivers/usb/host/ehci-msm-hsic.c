@@ -48,9 +48,30 @@
 #include <linux/cpu.h>
 #include <mach/rpm-regulator.h>
 
+static const struct usb_device_id usb1_1[] = {
+	{ USB_DEVICE(0x5c6, 0x9048),
+	.driver_info = 0 },
+	{ USB_DEVICE(0x5c6, 0x908A),
+	.driver_info = 0 },
+	{}
+};
+
+static struct usb_device *mdm_usb1_1_usbdev = NULL;
+static struct device *mdm_usb1_1_dev = NULL;
+
+#define HSIC_PM_MON_DELAY 5000
+static struct delayed_work mdm_hsic_pm_monitor_delayed_work;
+static struct delayed_work register_usb_notification_work;
+
+static bool usb_device_recongnized = false;
+
+#define HSIC_GPIO_CHECK_DELAY 5000
+
 #define MSM_USB_BASE (hcd->regs)
 #define USB_REG_START_OFFSET 0x90
 #define USB_REG_END_OFFSET 0x250
+
+static struct delayed_work  ehci_gpio_check_wq;
 
 static struct workqueue_struct  *ehci_wq;
 struct ehci_timer {
@@ -99,6 +120,13 @@ struct msm_hsic_hcd {
 	int			resume_again;
 };
 
+bool ehci_hsic_is_2nd_enum_done(void)
+{
+	return (mdm_usb1_1_usbdev ? true : false);
+}
+EXPORT_SYMBOL_GPL(ehci_hsic_is_2nd_enum_done);
+
+extern int subsystem_restart(const char *name);
 struct msm_hsic_hcd *__mehci;
 
 static bool debug_bus_voting_enabled = true;
@@ -279,6 +307,45 @@ static void dbg_log_event(struct urb *urb, char * event, unsigned extra)
 	}
 }
 
+static int in_progress;
+
+static void do_restart(struct work_struct *dummy)
+{
+#ifdef CONFIG_ARCH_APQ8064
+	
+	
+	int err_fatal=0;
+	
+	int mdm2ap_status = 0;
+	
+	
+	extern int mdm_common_htc_get_mdm2ap_errfatal_level(void);
+	extern int mdm_common_htc_get_mdm2ap_status_level(void);
+
+	err_fatal = mdm_common_htc_get_mdm2ap_errfatal_level();
+	mdm2ap_status = mdm_common_htc_get_mdm2ap_status_level();
+
+	pr_info("%s: inprocess: %d, err_fatal:%d, system_state: %d, mdm2ap_status: %d \n", __func__, in_progress, err_fatal, system_state, mdm2ap_status);
+	if(!in_progress && !err_fatal && mdm2ap_status == 1 && system_state == SYSTEM_RUNNING){
+		in_progress = 1;
+		pr_info("%s: do SSR-!\n", __func__);
+		subsystem_restart("external_modem");
+	} else if (!in_progress && err_fatal && mdm2ap_status == 1 && system_state == SYSTEM_RUNNING ) {
+		
+		pr_info("%s: schedule ehci_gpio_check_wq to check err_fatal state\n", __func__);
+		schedule_delayed_work(&ehci_gpio_check_wq, msecs_to_jiffies(HSIC_GPIO_CHECK_DELAY));
+	}
+#endif 
+}
+
+static DECLARE_DELAYED_WORK(htc_ehci_do_mdm_restart_delay_work, do_restart);
+void htc_ehci_trigger_mdm_restart(void)
+{
+	pr_info("%s[%d]\n", __func__, __LINE__);
+	schedule_delayed_work_on(0, &htc_ehci_do_mdm_restart_delay_work, msecs_to_jiffies(10));
+}
+EXPORT_SYMBOL_GPL(htc_ehci_trigger_mdm_restart);
+
 static inline struct msm_hsic_hcd *hcd_to_hsic(struct usb_hcd *hcd)
 {
 	return (struct msm_hsic_hcd *) (hcd->hcd_priv);
@@ -287,6 +354,27 @@ static inline struct msm_hsic_hcd *hcd_to_hsic(struct usb_hcd *hcd)
 static inline struct usb_hcd *hsic_to_hcd(struct msm_hsic_hcd *mehci)
 {
 	return container_of((void *) mehci, struct usb_hcd, hcd_priv);
+}
+
+static void mdm_hsic_gpio_check_func(struct work_struct *work)
+{
+#ifdef CONFIG_ARCH_APQ8064
+	int err_fatal=0;
+	int mdm2ap_status = 0;
+
+	extern int mdm_common_htc_get_mdm2ap_errfatal_level(void);
+	extern int mdm_common_htc_get_mdm2ap_status_level(void);
+
+	err_fatal = mdm_common_htc_get_mdm2ap_errfatal_level();
+	mdm2ap_status = mdm_common_htc_get_mdm2ap_status_level();
+
+	pr_info("%s: inprocess: %d, err_fatal:%d, system_state: %d, mdm2ap_status: %d \n", __func__, in_progress, err_fatal, system_state, mdm2ap_status);
+	if (!in_progress && err_fatal && mdm2ap_status == 1 && system_state == SYSTEM_RUNNING ) {
+		in_progress = 1;
+		pr_info("%s: do SSR-!\n", __func__);
+		subsystem_restart("external_modem");
+	}
+#endif 
 }
 
 static void dump_hsic_regs(struct usb_hcd *hcd)
@@ -303,6 +391,55 @@ static void dump_hsic_regs(struct usb_hcd *hcd)
 				readl_relaxed(hcd->regs + i + 4),
 				readl_relaxed(hcd->regs + i + 8),
 				readl_relaxed(hcd->regs + i + 0xc));
+}
+
+static void mdm_hsic_usb_device_add_handler(struct usb_device *udev)
+{
+	struct usb_interface *intf = usb_ifnum_to_if(udev, 0);
+	const struct usb_device_id *usb1_1_id;
+	if (intf == NULL)
+		return;
+
+	pr_info("%s(%d) USB device added %d <%s %s>\n", __func__, __LINE__, udev->devnum, udev->manufacturer, udev->product);
+	usb1_1_id = usb_match_id(intf, usb1_1);
+	if (usb1_1_id) {
+		usb_device_recongnized = true;
+		pr_info("%s: usb 1-1 found \n", __func__);
+		mdm_usb1_1_usbdev = udev;
+		mdm_usb1_1_dev = &(udev->dev);
+	}
+}
+static void mdm_hsic_usb_device_remove_handler(struct usb_device *udev)
+{
+	if (mdm_usb1_1_usbdev == udev) {
+		usb_device_recongnized = false;
+		pr_info("Remove device %d <%s %s>\n", udev->devnum,	udev->manufacturer, udev->product);
+		mdm_usb1_1_usbdev = NULL;
+		mdm_usb1_1_dev = NULL;
+	}
+}
+
+static int mdm_hsic_usb_notify(struct notifier_block *self, unsigned long action,	void *blob)
+{
+
+	switch (action)	{
+		case USB_DEVICE_ADD:
+			mdm_hsic_usb_device_add_handler(blob);
+			break;
+		case USB_DEVICE_REMOVE:
+			mdm_hsic_usb_device_remove_handler(blob);
+			break;
+		}
+	return NOTIFY_OK;
+}
+
+struct notifier_block mdm_hsic_usb_nb = {
+	.notifier_call = mdm_hsic_usb_notify,
+};
+
+static void register_usb_notification_func(struct work_struct *work)
+{
+	usb_register_notify(&mdm_hsic_usb_nb);
 }
 
 #define ULPI_IO_TIMEOUT_USEC	(10 * 1000)
@@ -714,6 +851,9 @@ static int msm_hsic_suspend(struct msm_hsic_hcd *mehci)
 	enable_irq_wake(mehci->wakeup_irq);
 	enable_irq(mehci->wakeup_irq);
 
+	if (usb_device_recongnized)
+		cancel_delayed_work(&mdm_hsic_pm_monitor_delayed_work);
+
 	wake_unlock(&mehci->wlock);
 
 	dev_dbg(mehci->dev, "HSIC-USB in low power mode\n");
@@ -741,6 +881,9 @@ static int msm_hsic_resume(struct msm_hsic_hcd *mehci)
 		mehci->wakeup_irq_enabled = 0;
 	}
 	spin_unlock_irqrestore(&mehci->wakeup_lock, flags);
+
+	if (usb_device_recongnized)
+		schedule_delayed_work(&mdm_hsic_pm_monitor_delayed_work, msecs_to_jiffies(HSIC_PM_MON_DELAY));
 
 	wake_lock(&mehci->wlock);
 
@@ -1250,6 +1393,7 @@ put_core_clk:
 
 	return ret;
 }
+
 static irqreturn_t hsic_peripheral_status_change(int irq, void *dev_id)
 {
 	struct msm_hsic_hcd *mehci = dev_id;
@@ -1595,6 +1739,8 @@ static int __devinit ehci_hsic_msm_probe(struct platform_device *pdev)
 
 	INIT_WORK(&mehci->bus_vote_w, ehci_hsic_bus_vote_w);
 
+	INIT_DELAYED_WORK(&ehci_gpio_check_wq, mdm_hsic_gpio_check_func);
+
 	ret = usb_add_hcd(hcd, hcd->irq, IRQF_SHARED);
 	if (ret) {
 		dev_err(&pdev->dev, "unable to register HCD\n");
@@ -1668,6 +1814,10 @@ static int __devinit ehci_hsic_msm_probe(struct platform_device *pdev)
 	if (pdev->dev.parent)
 		pm_runtime_put_sync(pdev->dev.parent);
 
+	INIT_DELAYED_WORK(&register_usb_notification_work, register_usb_notification_func);
+
+	in_progress = 0;
+
 	return 0;
 
 unconfig_gpio:
@@ -1706,6 +1856,7 @@ static int __devexit ehci_hsic_msm_remove(struct platform_device *pdev)
 	 */
 	mehci->bus_vote = false;
 	cancel_work_sync(&mehci->bus_vote_w);
+	cancel_delayed_work_sync(&ehci_gpio_check_wq);
 
 	if (mehci->bus_perf_client)
 		msm_bus_scale_unregister_client(mehci->bus_perf_client);

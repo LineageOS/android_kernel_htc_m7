@@ -40,6 +40,8 @@
 #define HS_INTERVAL		7
 #define FS_LS_INTERVAL		3
 
+#define RMNET_OPEN_TIMEOUT_MS   30000
+
 /*echo modem_wait > /sys/class/hsicctl/hsicctlx/modem_wait*/
 static ssize_t modem_wait_store(struct device *d, struct device_attribute *attr,
 		const char *buf, size_t n)
@@ -439,6 +441,7 @@ static int rmnet_ctl_open(struct inode *inode, struct file *file)
 	int			retval = 0;
 	struct rmnet_ctrl_dev	*dev =
 		container_of(inode->i_cdev, struct rmnet_ctrl_dev, cdev);
+	extern void htc_ehci_trigger_mdm_restart(void);
 
 	if (!dev)
 		return -ENODEV;
@@ -467,6 +470,14 @@ static int rmnet_ctl_open(struct inode *inode, struct file *file)
 	if (!dev->resp_available) {
 		dev_dbg(dev->devicep, "%s: Connection timedout opening %s\n",
 					__func__, dev->name);
+
+		if (jiffies_to_msecs(jiffies - dev->connected_jiffies) > RMNET_OPEN_TIMEOUT_MS) {
+			dev_err(dev->devicep, "%s[%d]:dev->connected_jiffies:%lu jiffies:%lu\n", __func__, __LINE__, dev->connected_jiffies, jiffies);
+			dev_err(dev->devicep, "%s[%d]:htc_ehci_trigger_mdm_restart!!!\n", __func__, __LINE__);
+			htc_ehci_trigger_mdm_restart();
+			msleep(500);
+		}
+
 		return -ETIMEDOUT;
 	}
 
@@ -818,8 +829,10 @@ int rmnet_usb_ctrl_probe(struct usb_interface *intf,
 
 	usb_mark_last_busy(udev);
 	ret = rmnet_usb_ctrl_start_rx(dev);
-	if (!ret)
+	if (!ret) {
 		dev->is_connected = true;
+		dev->connected_jiffies = jiffies;
+	}
 
 	return ret;
 }

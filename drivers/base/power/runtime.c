@@ -662,7 +662,10 @@ static int rpm_resume(struct device *dev, int rpmflags)
 		dev->power.request = RPM_REQ_RESUME;
 		if (!dev->power.request_pending) {
 			dev->power.request_pending = true;
-			queue_work(pm_wq, &dev->power.work);
+			if (!strncmp(dev_name(dev), "msm_hsic_host", 13))
+				queue_work(pm_rt_wq, &dev->power.work);
+			else
+				queue_work(pm_wq, &dev->power.work);
 		}
 		retval = 0;
 		goto out;
