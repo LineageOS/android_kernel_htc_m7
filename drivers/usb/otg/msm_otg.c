@@ -1004,6 +1004,24 @@ static int msm_otg_suspend(struct msm_otg *motg)
 	return 0;
 }
 
+int msm_otg_setclk(int on)
+{
+    if (on) {
+        if (!the_msm_otg->pdata->core_clk_always_on_workaround) {
+            clk_prepare_enable(the_msm_otg->core_clk);
+            
+        }
+    }
+    else {
+        if (!the_msm_otg->pdata->core_clk_always_on_workaround) {
+            clk_disable_unprepare(the_msm_otg->core_clk);
+            
+        }
+    }
+    return 0;
+}
+EXPORT_SYMBOL(msm_otg_setclk);
+
 static int msm_otg_resume(struct msm_otg *motg)
 {
 	struct usb_phy *phy = &motg->phy;
