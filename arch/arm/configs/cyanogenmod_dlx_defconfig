@@ -1556,9 +1556,9 @@ CONFIG_WLAN=y
 # CONFIG_WCNSS_CORE is not set
 # CONFIG_QUALCOMM_WLAN is not set
 # CONFIG_ATH_COMMON is not set
-CONFIG_BCMDHD=y
+CONFIG_BCMDHD_4334_MCC=y
 CONFIG_BCMDHD_FW_PATH="/system/etc/firmware/fw_bcm4334.bin"
-CONFIG_BCMDHD_NVRAM_PATH="/system/etc/calibration.gpio4"
+CONFIG_BCMDHD_NVRAM_PATH="/etc/calibration"
 # CONFIG_DHD_USE_STATIC_BUF is not set
 # CONFIG_DHD_USE_SCHED_SCAN is not set
 # CONFIG_BRCMFMAC is not set
@@ -1571,7 +1571,6 @@ CONFIG_BCMDHD_NVRAM_PATH="/system/etc/calibration.gpio4"
 # CONFIG_BCMDHD_4334 is not set
 # CONFIG_BCMDHD_4335 is not set
 # CONFIG_BCMDHD_4335_MCC is not set
-# CONFIG_BCMDHD_4334_MCC is not set
 
 #
 # Enable WiMAX (Networking options) to see the WiMAX drivers
