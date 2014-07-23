@@ -2042,7 +2042,7 @@ static int nl80211_del_key(struct sk_buff *skb, struct genl_info *info)
 	return err;
 }
 
-#ifdef CONFIG_BCMDHD_4335
+#ifdef CONFIG_BCMDHD_FW_PATH
 static int nl80211_addset_beacon(struct sk_buff *skb, struct genl_info *info)
 {
         int (*call)(struct wiphy *wiphy, struct net_device *dev,
@@ -2192,9 +2192,9 @@ static int nl80211_del_beacon(struct sk_buff *skb, struct genl_info *info)
 		wdev->beacon_interval = 0;
 	return err;
 }
-#endif /* #ifdef CONFIG_BCMDHD_4335 */
+#endif
 
-#ifndef CONFIG_BCMDHD_4335
+#ifndef CONFIG_BCMDHD_FW_PATH
 static int nl80211_parse_beacon(struct genl_info *info,
 				struct cfg80211_beacon_data *bcn)
 {
@@ -2384,9 +2384,10 @@ static int nl80211_stop_ap(struct sk_buff *skb, struct genl_info *info)
 
 	err = rdev->ops->stop_ap(&rdev->wiphy, dev);
 	wdev->beacon_interval = 0;
+
 	return err;
 }
-#endif /* #ifndef CONFIG_BCMDHD_4335 */
+#endif 
 
 static const struct nla_policy sta_flags_policy[NL80211_STA_FLAG_MAX + 1] = {
 	[NL80211_STA_FLAG_AUTHORIZED] = { .type = NLA_FLAG },
@@ -6542,18 +6543,19 @@ static struct genl_ops nl80211_ops[] = {
 		.cmd = NL80211_CMD_SET_BEACON,
 		.policy = nl80211_policy,
 		.flags = GENL_ADMIN_PERM,
-#ifdef CONFIG_BCMDHD_4335
+#ifndef CONFIG_BCMDHD_FW_PATH 
+		.doit = nl80211_set_beacon,
+		.internal_flags = NL80211_FLAG_NEED_NETDEV_UP |
+				  NL80211_FLAG_NEED_RTNL,
+#else
 		
 		.doit = nl80211_addset_beacon,
 		.internal_flags = NL80211_FLAG_NEED_NETDEV | 
 				  NL80211_FLAG_NEED_RTNL,
-#else	
-		.doit = nl80211_set_beacon,
-		.internal_flags = NL80211_FLAG_NEED_NETDEV_UP |
-				  NL80211_FLAG_NEED_RTNL,
+		
 #endif
 	},
-#ifdef CONFIG_BCMDHD_4335
+#ifdef CONFIG_BCMDHD_FW_PATH	
 	{
 		.cmd = NL80211_CMD_NEW_BEACON,
 		.policy = nl80211_policy,
@@ -8195,6 +8197,7 @@ static struct notifier_block nl80211_netlink_notifier = {
 	.notifier_call = nl80211_netlink_notify,
 };
 
+
 void cfg80211_stop_ap(struct net_device *netdev, gfp_t gfp)
 {
 	struct wireless_dev *wdev = netdev->ieee80211_ptr;
@@ -8204,6 +8207,7 @@ void cfg80211_stop_ap(struct net_device *netdev, gfp_t gfp)
 			NL80211_CMD_STOP_AP, gfp);
 }
 EXPORT_SYMBOL(cfg80211_stop_ap);
+
 
 int nl80211_init(void)
 {
