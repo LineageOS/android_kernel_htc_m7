@@ -4556,7 +4556,6 @@ static int __alloc_contig_migrate_range(struct compact_control *cc,
  * pages which PFN is in [start, end) are allocated for the caller and
  * need to be freed with free_contig_range().
  */
->>>>>>> ec005c0... mm: cma: remove watermark hacks
 int alloc_contig_range(unsigned long start, unsigned long end,
 		       unsigned migratetype)
 {
