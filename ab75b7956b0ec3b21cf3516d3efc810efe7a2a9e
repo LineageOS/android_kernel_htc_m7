@@ -16,6 +16,24 @@
       "revId": "ab75b7956b0ec3b21cf3516d3efc810efe7a2a9e",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5ac665da_e4b4afd2",
+        "filename": "mm/page_alloc.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 4542,
+      "author": {
+        "id": 3671
+      },
+      "writtenOn": "2015-03-20T08:24:32Z",
+      "side": 1,
+      "message": "ugh...thanks for this, will fix\n\nstupid htc...",
+      "parentUuid": "5ac665da_84adfb8a",
+      "revId": "ab75b7956b0ec3b21cf3516d3efc810efe7a2a9e",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
     }
   ]
 }
