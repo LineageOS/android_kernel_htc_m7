@@ -545,10 +545,13 @@ __sum16 __skb_checksum_complete(struct sk_buff *skb)
 EXPORT_SYMBOL(__skb_checksum_complete);
 
 int skb_copy_and_csum_datagram_iovec(struct sk_buff *skb,
-				     int hlen, struct iovec *iov)
+				     int hlen, struct iovec *iov, int len)
 {
 	__wsum csum;
 	int chunk = skb->len - hlen;
+
+	if (chunk > len)
+		chunk = len;
 
 	if (!chunk)
 		return 0;
