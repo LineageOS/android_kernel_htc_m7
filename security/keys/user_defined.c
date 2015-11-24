@@ -100,7 +100,10 @@ int user_update(struct key *key, const void *data, size_t datalen)
 
 	if (ret == 0) {
 		
-		zap = key->payload.data;
+		if (!test_bit(KEY_FLAG_NEGATIVE, &key->flags))
+			zap = key->payload.data;
+		else
+			zap = NULL;
 		rcu_assign_keypointer(key, upayload);
 		key->expiry = 0;
 	}
