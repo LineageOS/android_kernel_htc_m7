@@ -537,6 +537,7 @@ struct user_struct {
 	unsigned long mq_bytes;	
 #endif
 	unsigned long locked_shm; 
+	atomic_long_t pipe_bufs;  /* how many pages are allocated in pipe buffers */
 
 #ifdef CONFIG_KEYS
 	struct key *uid_keyring;	
