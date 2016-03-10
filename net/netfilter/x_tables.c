@@ -651,6 +651,9 @@ struct xt_table_info *xt_alloc_table_info(unsigned int size)
 	struct xt_table_info *newinfo;
 	int cpu;
 
+	if (sz < sizeof(*info))
+		return NULL;
+
 	
 	if ((SMP_ALIGN(size) >> PAGE_SHIFT) + 2 > totalram_pages)
 		return NULL;
