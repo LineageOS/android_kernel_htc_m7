@@ -310,6 +310,8 @@ static void __inet_del_ifa(struct in_device *in_dev, struct in_ifaddr **ifap,
 
 	ASSERT_RTNL();
 
+	if (in_dev->dead)
+		goto no_promotions;
 
 	if (!(ifa1->ifa_flags & IFA_F_SECONDARY)) {
 		struct in_ifaddr **ifap1 = &ifa1->ifa_next;
@@ -348,6 +350,7 @@ static void __inet_del_ifa(struct in_device *in_dev, struct in_ifaddr **ifap,
 			fib_del_ifaddr(ifa, ifa1);
 	}
 
+no_promotions:
 	
 
 	*ifap = ifa1->ifa_next;
