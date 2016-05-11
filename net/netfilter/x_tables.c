@@ -652,7 +652,7 @@ struct xt_table_info *xt_alloc_table_info(unsigned int size)
 	int cpu;
 	size_t sz = sizeof(*newinfo) + size;
 
-	if (sz < sizeof(*info))
+	if (sz < sizeof(*newinfo))
 		return NULL;
 
 	
